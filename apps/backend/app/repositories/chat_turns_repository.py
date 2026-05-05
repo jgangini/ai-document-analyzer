@@ -49,6 +49,7 @@ class QASessionsRepository:
                     "file_name": str(item.get("file_name") or ""),
                     "page_number": int(item.get("page_number") or 0),
                     "object_name_page": str(item.get("object_name_page") or ""),
+                    "snippet": str(item.get("snippet") or "")[:500],
                 }
             )
         return compacted

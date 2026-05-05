@@ -280,47 +280,51 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
 
         {!collapsed && (
-          <div className="mt-2 px-2 min-h-0 flex-1 overflow-y-auto">
-            <div className="flex items-center justify-between px-2 pb-2">
-              <p className="text-sm font-medium text-white/90">Chats</p>
+          <section className="mt-2 min-h-0 flex-1 flex flex-col" aria-labelledby="sidebar-chats-heading">
+            <div className="flex shrink-0 items-center justify-between px-4 pb-2">
+              <p id="sidebar-chats-heading" className="text-sm font-medium text-white/90">
+                Chats
+              </p>
             </div>
-            <div className="space-y-0.5 pb-2">
-              {recentChatsQuery.isLoading ? (
-                <p className="px-2 py-2 text-xs text-gray-400">Loading chats...</p>
-              ) : recentChatsQuery.isError ? (
-                <p className="px-2 text-xs text-red-300">No se pudieron cargar los chats</p>
-              ) : (recentChatsQuery.data || []).length === 0 ? (
-                <p className="px-2 text-xs text-gray-400">No chats yet</p>
-              ) : (
-                (recentChatsQuery.data || []).map((chat) => {
-                  const isActiveChat =
-                    location.pathname === '/chat' && activeConversationId === chat.conversation_id;
-                  return (
-                    <button
-                      key={chat.conversation_id}
-                      type="button"
-                      className={`w-full rounded-xl px-3 py-2 text-left transition-colors ${
-                        isActiveChat
-                          ? 'bg-white/10 text-white'
-                          : 'text-gray-100 hover:bg-white/5'
-                      }`}
-                      onClick={() => openConversation(chat.conversation_id, chat.title)}
-                      title={chat.title}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-sm leading-5">
-                          {chat.title}
+            <div className="sidebar-chat-scroll min-h-0 flex-1 overflow-y-auto px-2">
+              <div className="space-y-0.5 pb-2">
+                {recentChatsQuery.isLoading ? (
+                  <p className="px-2 py-2 text-xs text-gray-400">Loading chats...</p>
+                ) : recentChatsQuery.isError ? (
+                  <p className="px-2 text-xs text-red-300">No se pudieron cargar los chats</p>
+                ) : (recentChatsQuery.data || []).length === 0 ? (
+                  <p className="px-2 text-xs text-gray-400">No chats yet</p>
+                ) : (
+                  (recentChatsQuery.data || []).map((chat) => {
+                    const isActiveChat =
+                      location.pathname === '/chat' && activeConversationId === chat.conversation_id;
+                    return (
+                      <button
+                        key={chat.conversation_id}
+                        type="button"
+                        className={`w-full rounded-xl px-3 py-2 text-left transition-colors ${
+                          isActiveChat
+                            ? 'bg-white/10 text-white'
+                            : 'text-gray-100 hover:bg-white/5'
+                        }`}
+                        onClick={() => openConversation(chat.conversation_id, chat.title)}
+                        title={chat.title}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-sm leading-5">
+                            {chat.title}
+                          </span>
+                          <span className="shrink-0 text-[11px] font-medium text-gray-400">
+                            {formatRelativeUpdatedAt(chat.updated_at)}
+                          </span>
                         </span>
-                        <span className="shrink-0 text-[11px] font-medium text-gray-400">
-                          {formatRelativeUpdatedAt(chat.updated_at)}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })
-              )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
+          </section>
         )}
 
         <div className={`mt-auto translate-y-[10px] ${collapsed ? '' : 'pt-2 border-t border-white/10'}`}>

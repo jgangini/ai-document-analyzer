@@ -118,10 +118,17 @@ class HybridAnswerTool:
                 llm_result=llm_result,
                 confidence_notes=resolved_visual_result.confidence_notes,
             )
+            llm_result = self._prepend_metadata_table_when_available(
+                llm_result=llm_result,
+                fact_context_text=fact_context_text,
+                evidence=selected_evidence,
+            )
 
         confidence_notes = list(resolved_visual_result.confidence_notes)
         if fact_context_text:
             confidence_notes.append("Facts layer aporto contexto estructurado antes de la sintesis.")
+            if selected_evidence and self._build_metadata_context_table(fact_context_text=fact_context_text):
+                confidence_notes.append("Metadata table was preserved before the document-grounded synthesis.")
         if answer_override:
             confidence_notes.append("La respuesta final fue resuelta de forma deterministica desde la facts layer.")
         if selected_evidence:
@@ -169,6 +176,113 @@ class HybridAnswerTool:
             citation_source_numbers=citation_numbers,
             model_used=f"facts-layer:{question_class or 'extractive'}",
         )
+
+    @classmethod
+    def _prepend_metadata_table_when_available(
+        cls,
+        *,
+        llm_result: LLMResult,
+        fact_context_text: str,
+        evidence: list[EvidenceItem],
+    ) -> LLMResult:
+        if not evidence:
+            return llm_result
+        metadata_table = cls._build_metadata_context_table(fact_context_text=fact_context_text)
+        if not metadata_table:
+            return llm_result
+        answer_text = str(llm_result.answer_text or "").strip()
+        if cls._answer_already_contains_metadata_table(answer_text=answer_text):
+            return llm_result
+        merged_answer = "\n\n".join(part for part in (metadata_table, answer_text) if part.strip()).strip()
+        return llm_result.__class__(
+            answer_text=merged_answer,
+            executive_summary=llm_result.executive_summary,
+            key_points=list(llm_result.key_points),
+            obligations=list(llm_result.obligations),
+            citation_source_numbers=list(llm_result.citation_source_numbers),
+            model_used=llm_result.model_used,
+        )
+
+    @classmethod
+    def _build_metadata_context_table(cls, *, fact_context_text: str) -> str:
+        metadata_lines = cls._extract_metadata_context_lines(
+            fact_context_text=fact_context_text,
+            heading="Resolved metadata facts:",
+        )
+        if not metadata_lines:
+            metadata_lines = cls._extract_metadata_context_lines(
+                fact_context_text=fact_context_text,
+                heading="Archive metadata context:",
+            )
+        rows: list[tuple[str, dict[str, str]]] = []
+        headers: list[str] = []
+        for line in metadata_lines:
+            match = re.match(r"^([^:]+):\s+(.+)$", line)
+            if match is None:
+                continue
+            archive_slug = match.group(1).strip()
+            if not archive_slug or archive_slug.lower().endswith("context"):
+                continue
+            fields: dict[str, str] = {}
+            for raw_pair in match.group(2).split(";"):
+                if "=" not in raw_pair:
+                    continue
+                field_name, field_value = raw_pair.split("=", 1)
+                field_name = field_name.strip()
+                field_value = field_value.strip()
+                if not field_name or not field_value:
+                    continue
+                fields[field_name] = field_value
+                if field_name not in headers:
+                    headers.append(field_name)
+            if fields:
+                rows.append((archive_slug, fields))
+        if not rows or not headers:
+            return ""
+        bounded_headers = headers[:10]
+        table_lines = [
+            "| " + " | ".join(cls._escape_markdown_table_cell(value) for value in ("Archivo", *bounded_headers)) + " |",
+            "| " + " | ".join("---" for _ in ("Archivo", *bounded_headers)) + " |",
+        ]
+        for archive_slug, fields in rows:
+            values = [archive_slug, *[fields.get(header, "") for header in bounded_headers]]
+            table_lines.append(
+                "| " + " | ".join(cls._escape_markdown_table_cell(value) for value in values) + " |"
+            )
+        return "Metadata resuelta:\n\n" + "\n".join(table_lines)
+
+    @staticmethod
+    def _extract_metadata_context_lines(*, fact_context_text: str, heading: str) -> list[str]:
+        lines: list[str] = []
+        capture = False
+        for raw_line in str(fact_context_text or "").splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line == heading:
+                capture = True
+                continue
+            if capture and (
+                line.endswith("context:")
+                or line.startswith("Resolved metadata ")
+                or line.startswith("Document inventory ")
+            ):
+                break
+            if capture:
+                lines.append(line)
+        return lines
+
+    @classmethod
+    def _answer_already_contains_metadata_table(cls, *, answer_text: str) -> bool:
+        normalized = cls._normalize(answer_text)
+        return bool(
+            "metadata resuelta" in normalized
+            or re.search(r"\|\s*archivo\s*\|", normalized) is not None
+        )
+
+    @staticmethod
+    def _escape_markdown_table_cell(value: object) -> str:
+        return str(value or "").replace("|", "\\|").replace("\n", " ").strip()
 
     def _apply_deterministic_overrides(
         self,

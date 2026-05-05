@@ -1,4 +1,15 @@
-import { type ComponentPropsWithoutRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  type ComponentPropsWithoutRef,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -49,6 +60,7 @@ type Source = {
   file_id?: number;
   page_number?: number;
   object_name_page?: string;
+  snippet?: string;
 };
 
 type Message = {
@@ -1024,6 +1036,162 @@ const CHAT_MARKDOWN_COMPONENTS = {
   td: ChatMarkdownTd,
 };
 
+const SOURCE_HIGHLIGHT_STOPWORDS = new Set([
+  'ante',
+  'aqui',
+  'cada',
+  'como',
+  'con',
+  'cual',
+  'cuales',
+  'cuando',
+  'del',
+  'desde',
+  'donde',
+  'esta',
+  'este',
+  'esto',
+  'estos',
+  'para',
+  'pero',
+  'porque',
+  'segun',
+  'sobre',
+  'tambien',
+  'the',
+  'that',
+  'this',
+  'with',
+]);
+
+function extractDocumentPageMarkdown(markdown: string, pageNumber: number): string {
+  const content = String(markdown || '');
+  const normalizedPage = Math.max(1, Math.floor(Number(pageNumber) || 1));
+  const headingRegex = /^##\s+Page\s+(\d+)\s*$/gim;
+  const matches = Array.from(content.matchAll(headingRegex));
+  if (matches.length === 0) return content.trim();
+
+  for (let index = 0; index < matches.length; index += 1) {
+    const current = matches[index];
+    const next = matches[index + 1];
+    const currentPage = Number(current[1]);
+    if (currentPage !== normalizedPage || current.index === undefined) continue;
+    const sectionStart = current.index + current[0].length;
+    const sectionEnd = next?.index ?? content.length;
+    return content.slice(sectionStart, sectionEnd).trim();
+  }
+  return '';
+}
+
+function buildSourceHighlightTerms(snippet: string): string[] {
+  const text = String(snippet || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return [];
+
+  const seen = new Set<string>();
+  const terms: string[] = [];
+  const words = text.match(/[\p{L}\p{N}]{4,}/gu) || [];
+  for (const word of words) {
+    const normalized = word.toLocaleLowerCase();
+    if (SOURCE_HIGHLIGHT_STOPWORDS.has(normalized) || /^\d+$/.test(normalized) || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    terms.push(word);
+    if (terms.length >= 18) break;
+  }
+  return terms.sort((left, right) => right.length - left.length);
+}
+
+function escapeRegExp(value: string): string {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightText(value: string, highlightTerms: string[]): ReactNode {
+  if (!highlightTerms.length) return value;
+  const pattern = highlightTerms.map(escapeRegExp).filter(Boolean).join('|');
+  if (!pattern) return value;
+  const regex = new RegExp(`(${pattern})`, 'gi');
+  const parts = String(value).split(regex);
+  return parts.map((part, index) => {
+    if (!part) return null;
+    const isMatch = highlightTerms.some((term) => term.toLocaleLowerCase() === part.toLocaleLowerCase());
+    if (!isMatch) return part;
+    return (
+      <mark
+        key={`${part}-${index}`}
+        className="rounded bg-yellow-200 px-0.5 text-oracle-dark-gray ring-1 ring-yellow-300"
+      >
+        {part}
+      </mark>
+    );
+  });
+}
+
+function highlightInlineChildren(children: ReactNode, highlightTerms: string[]): ReactNode {
+  if (!highlightTerms.length) return children;
+  if (typeof children === 'string' || typeof children === 'number') {
+    return highlightText(String(children), highlightTerms);
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, index) => (
+      <span key={index}>{highlightInlineChildren(child, highlightTerms)}</span>
+    ));
+  }
+  if (isValidElement(children)) {
+    const element = children as ReactElement<{ children?: ReactNode }>;
+    return cloneElement(element, undefined, highlightInlineChildren(element.props.children, highlightTerms));
+  }
+  return children;
+}
+
+function buildSourcePreviewMarkdownComponents(highlightTerms: string[]) {
+  const highlight = (children: ReactNode) => highlightInlineChildren(children, highlightTerms);
+  return {
+    h2: ({ children }: ComponentPropsWithoutRef<'h2'>) => (
+      <h2 className="mt-3 border-b border-gray-200 pb-1 text-base font-semibold leading-6 text-oracle-dark-gray first:mt-0">
+        {highlight(children)}
+      </h2>
+    ),
+    h3: ({ children }: ComponentPropsWithoutRef<'h3'>) => (
+      <h3 className="mt-2 text-sm font-semibold leading-5 text-oracle-dark-gray">{highlight(children)}</h3>
+    ),
+    p: ({ children }: ComponentPropsWithoutRef<'p'>) => (
+      <p className="my-1.5 text-[13px] leading-6 text-oracle-dark-gray">{highlight(children)}</p>
+    ),
+    ul: ({ children }: ComponentPropsWithoutRef<'ul'>) => (
+      <ul className="my-2 space-y-1.5 pl-5 leading-6 marker:text-oracle-red">{children}</ul>
+    ),
+    ol: ({ children }: ComponentPropsWithoutRef<'ol'>) => (
+      <ol className="my-2 space-y-2 pl-5 leading-6 marker:font-semibold marker:text-oracle-red">{children}</ol>
+    ),
+    li: ({ children }: ComponentPropsWithoutRef<'li'>) => (
+      <li className="pl-1 leading-6 text-oracle-dark-gray">{highlight(children)}</li>
+    ),
+    strong: ({ children }: ComponentPropsWithoutRef<'strong'>) => (
+      <strong className="font-semibold text-oracle-dark-gray">{highlight(children)}</strong>
+    ),
+    code: ({ children }: ComponentPropsWithoutRef<'code'>) => (
+      <code className="rounded border border-gray-200 bg-gray-50 px-1 py-0.5 text-[0.82em] text-oracle-dark-gray">
+        {highlight(children)}
+      </code>
+    ),
+    table: ChatMarkdownTable,
+    thead: ChatMarkdownThead,
+    th: ({ children }: ComponentPropsWithoutRef<'th'>) => (
+      <th className="border-b border-gray-200 px-4 py-3 align-top text-left text-[11px] font-semibold uppercase tracking-wide text-oracle-dark-gray whitespace-nowrap">
+        {highlight(children)}
+      </th>
+    ),
+    td: ({ children }: ComponentPropsWithoutRef<'td'>) => (
+      <td className="border-t border-gray-100 px-4 py-3 align-top leading-5 whitespace-normal break-words text-oracle-medium-gray">
+        {highlight(children)}
+      </td>
+    ),
+  };
+}
+
 function buildMessageMergeSignature(message: Message): string {
   const normalizedText = String(message.text || '').trim().replace(/\s+/g, ' ');
   return `${message.role}::${normalizedText}`;
@@ -1175,6 +1343,7 @@ function mapSourcesFromArray(sourceItems: Array<Record<string, any>>): Source[] 
     const sourceNumber = Number(item?.source_number ?? 0);
     const pageNumber = Number(item?.page_number ?? 0);
     const fileName = String(item?.file_name || item?.name || 'document').trim();
+    const snippet = String(item?.snippet || '').trim();
     return {
       doc_id: String(sourceNumber || index + 1),
       name: `${fileName} - page ${pageNumber || '?'}`,
@@ -1182,6 +1351,7 @@ function mapSourcesFromArray(sourceItems: Array<Record<string, any>>): Source[] 
       file_id: Number(item?.file_id ?? 0) || undefined,
       page_number: pageNumber || undefined,
       object_name_page: String(item?.object_name_page ?? ''),
+      snippet: snippet || undefined,
     };
   });
 }
@@ -1190,6 +1360,24 @@ function mapSourcesByMetadataKey(metadata: Record<string, any>, key: string): So
   const sourceItems = Array.isArray(metadata?.[key]) ? (metadata[key] as Array<Record<string, any>>) : [];
   if (sourceItems.length === 0) return [];
   return mapSourcesFromArray(sourceItems);
+}
+
+function mapCitedSourcesFromMetadata(metadata: Record<string, any>, fallbackSources: Source[]): Source[] {
+  const explicitCitedSources = mapSourcesByMetadataKey(metadata, 'cited_sources');
+  if (explicitCitedSources.length > 0) return explicitCitedSources;
+
+  const selectedCitationNumbers = Array.isArray(metadata?.selected_citations)
+    ? new Set(
+        metadata.selected_citations
+          .map((value: unknown) => Number(value))
+          .filter((value: number) => Number.isFinite(value) && value > 0)
+      )
+    : new Set<number>();
+  if (selectedCitationNumbers.size === 0) return [];
+  return fallbackSources.filter((source) => {
+    const sourceNumber = Number(source.source_number ?? source.doc_id ?? 0);
+    return Number.isFinite(sourceNumber) && selectedCitationNumbers.has(sourceNumber);
+  });
 }
 
 function mapSourcesFromMetadata(metadata: Record<string, any>): Source[] {
@@ -1367,9 +1555,13 @@ export function RAGChatPanel() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isSourcePreviewOpen, setIsSourcePreviewOpen] = useState(false);
   const [sourcePreviewTitle, setSourcePreviewTitle] = useState('');
+  const [sourcePreviewPageNumber, setSourcePreviewPageNumber] = useState(0);
   const [sourcePreviewImageUri, setSourcePreviewImageUri] = useState('');
+  const [sourcePreviewMarkdown, setSourcePreviewMarkdown] = useState('');
+  const [sourcePreviewEvidenceSnippet, setSourcePreviewEvidenceSnippet] = useState('');
   const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
-  const [sourcePreviewError, setSourcePreviewError] = useState('');
+  const [sourcePreviewImageError, setSourcePreviewImageError] = useState('');
+  const [sourcePreviewMarkdownError, setSourcePreviewMarkdownError] = useState('');
   const [isGraphPanelOpen, setIsGraphPanelOpen] = useState(false);
   const [graphRunStatus, setGraphRunStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
   const [graphThreadId, setGraphThreadId] = useState('');
@@ -1394,6 +1586,14 @@ export function RAGChatPanel() {
   const copiedTimeoutRef = useRef<number | null>(null);
   const bootstrappingConversationIdRef = useRef<number | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
+  const sourcePreviewHighlightTerms = useMemo(
+    () => buildSourceHighlightTerms(sourcePreviewEvidenceSnippet),
+    [sourcePreviewEvidenceSnippet]
+  );
+  const sourcePreviewMarkdownComponents = useMemo(
+    () => buildSourcePreviewMarkdownComponents(sourcePreviewHighlightTerms),
+    [sourcePreviewHighlightTerms]
+  );
 
   const assistantSettingsQuery = useQuery({
     queryKey: ['settings', 'assistant-name'],
@@ -1935,7 +2135,7 @@ export function RAGChatPanel() {
         const loaded = (response.data?.messages || []).map((item: any) => {
           const metadata = item.retrieval_metadata || {};
           const sources = mapSourcesFromMetadata(metadata);
-          const citedSources = mapSourcesByMetadataKey(metadata, 'cited_sources');
+          const citedSources = mapCitedSourcesFromMetadata(metadata, sources);
           const retrievedSources = mapSourcesByMetadataKey(metadata, 'retrieved_sources');
           return {
             messageId: String(item.message_id),
@@ -2574,25 +2774,57 @@ export function RAGChatPanel() {
 
   const handleOpenSourcePreview = async (source: Source) => {
     if (!source.file_id || !source.page_number) return;
+    const pageNumber = Number(source.page_number);
     setIsSourcePreviewOpen(true);
     setSourcePreviewTitle(source.name);
+    setSourcePreviewPageNumber(Number.isFinite(pageNumber) ? pageNumber : 0);
     setSourcePreviewImageUri('');
-    setSourcePreviewError('');
+    setSourcePreviewMarkdown('');
+    setSourcePreviewEvidenceSnippet(String(source.snippet || '').trim());
+    setSourcePreviewImageError('');
+    setSourcePreviewMarkdownError('');
     setSourcePreviewLoading(true);
-    try {
-      const response = await ragApi.getDocumentPageImage(source.file_id, source.page_number);
-      const imageUri = String(response?.data?.data_uri || '').trim();
-      if (!imageUri) {
-        throw new Error('No image data available for this source.');
+
+    const imageRequest = ragApi.getDocumentPageImage(source.file_id, source.page_number);
+    const markdownRequest = ragApi.getDocumentMarkdown(String(source.file_id));
+    const [imageResult, markdownResult] = await Promise.allSettled([imageRequest, markdownRequest]);
+
+    if (imageResult.status === 'fulfilled') {
+      const imageUri = String(imageResult.value?.data?.data_uri || '').trim();
+      if (imageUri) {
+        setSourcePreviewImageUri(imageUri);
+      } else {
+        setSourcePreviewImageError('No image data available for this source.');
       }
-      setSourcePreviewImageUri(imageUri);
-    } catch (error: any) {
+    } else {
+      const error = imageResult.reason as any;
       const message =
         error?.response?.data?.detail || error?.message || 'Could not load source page image.';
-      setSourcePreviewError(String(message));
-    } finally {
-      setSourcePreviewLoading(false);
+      setSourcePreviewImageError(String(message));
     }
+
+    if (markdownResult.status === 'fulfilled') {
+      const markdown = String(markdownResult.value?.data?.markdown ?? '');
+      const pageMarkdown = extractDocumentPageMarkdown(markdown, source.page_number);
+      setSourcePreviewMarkdown(pageMarkdown || '_No Markdown content found for this page._');
+    } else {
+      const error = markdownResult.reason as any;
+      const message =
+        error?.response?.data?.detail || error?.message || 'Could not load source Markdown.';
+      setSourcePreviewMarkdownError(String(message));
+    }
+
+    setSourcePreviewLoading(false);
+  };
+
+  const copySourcePreviewMarkdown = () => {
+    if (!sourcePreviewMarkdown || sourcePreviewMarkdownError) return;
+    navigator.clipboard.writeText(sourcePreviewMarkdown);
+    setCopiedMessageId('source-preview-markdown');
+    if (copiedTimeoutRef.current) {
+      window.clearTimeout(copiedTimeoutRef.current);
+    }
+    copiedTimeoutRef.current = window.setTimeout(() => setCopiedMessageId(null), 1500);
   };
 
   const resolveSourcePreviewTarget = useCallback(
@@ -2697,7 +2929,11 @@ export function RAGChatPanel() {
         </div>
       ) : (
         <>
-          <div className="chat-conversation-header px-4 py-3 border-b border-oracle-border flex items-center gap-3 flex-shrink-0 bg-gray-50">
+          <div
+            className={`chat-conversation-header px-4 py-3 border-b border-oracle-border flex items-center gap-3 flex-shrink-0 bg-gray-50 ${
+              isHeaderMenuOpen ? 'chat-conversation-header--menu-open' : ''
+            }`}
+          >
             <div className="w-9 h-9 rounded-xl bg-oracle-red flex items-center justify-center flex-shrink-0 overflow-hidden">
               {showAssistantAvatarImage ? (
                 <img
@@ -2757,6 +2993,8 @@ export function RAGChatPanel() {
                 type="button"
                 className="p-1.5 rounded-md text-oracle-medium-gray hover:bg-black/5 transition-colors"
                 aria-label="Chat actions"
+                aria-haspopup="menu"
+                aria-expanded={isHeaderMenuOpen}
                 title="Chat actions"
                 onClick={() => setIsHeaderMenuOpen((prev) => !prev)}
               >
@@ -2765,9 +3003,14 @@ export function RAGChatPanel() {
                 </svg>
               </button>
               {isHeaderMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-20">
+                <div
+                  className="chat-header-actions-menu absolute right-0 top-full mt-2 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white py-2 shadow-xl z-50"
+                  role="menu"
+                  aria-label="Chat actions"
+                >
                   <button
                     type="button"
+                    role="menuitem"
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 disabled:opacity-60"
                     onClick={startInlineRename}
                     disabled={!activeConversationId || renamingConversation || deletingConversation || isInlineRenaming}
@@ -2779,6 +3022,7 @@ export function RAGChatPanel() {
                   </button>
                   <button
                     type="button"
+                    role="menuitem"
                     className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                     onClick={() => {
                       setIsGraphPanelOpen((prev) => {
@@ -2798,6 +3042,7 @@ export function RAGChatPanel() {
                   </button>
                   <button
                     type="button"
+                    role="menuitem"
                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-60"
                     onClick={() => {
                       setIsDeleteConfirmOpen(true);
@@ -2954,16 +3199,8 @@ export function RAGChatPanel() {
                               m.retrievedSources && m.retrievedSources.length > 0
                                 ? m.retrievedSources
                                 : m.sources || [];
-                            const citedKeys = new Set(
-                              citedSources.map((item) => `${item.file_id || 0}:${item.page_number || 0}`)
-                            );
-                            const retrievedSources =
-                              citedSources.length > 0
-                                ? rawRetrievedSources.filter(
-                                    (item) => !citedKeys.has(`${item.file_id || 0}:${item.page_number || 0}`)
-                                  )
-                                : rawRetrievedSources;
-                            if (citedSources.length === 0 && retrievedSources.length === 0) return null;
+                            const fallbackSources = citedSources.length === 0 ? rawRetrievedSources : [];
+                            if (citedSources.length === 0 && fallbackSources.length === 0) return null;
 
                             const renderSourceChip = (s: Source, index: number, keyPrefix: string) => {
                               const previewTarget = resolveSourcePreviewTarget(s);
@@ -3012,13 +3249,13 @@ export function RAGChatPanel() {
                                     </div>
                                   </div>
                                 )}
-                                {retrievedSources.length > 0 && (
+                                {fallbackSources.length > 0 && (
                                   <div>
                                     <p className="text-[10px] font-semibold text-oracle-light-gray uppercase tracking-wide mb-1.5">
-                                      {citedSources.length > 0 ? 'Retrieved evidence' : 'Sources'}
+                                      Sources
                                     </p>
                                     <div className="flex flex-wrap gap-1.5">
-                                      {retrievedSources.map((s, index) => renderSourceChip(s, index, 'retrieved'))}
+                                      {fallbackSources.map((s, index) => renderSourceChip(s, index, 'fallback'))}
                                     </div>
                                   </div>
                                 )}
@@ -3430,15 +3667,17 @@ export function RAGChatPanel() {
         open={isSourcePreviewOpen}
         onClose={() => setIsSourcePreviewOpen(false)}
         containerClassName="items-start justify-center p-4"
-        panelClassName="w-full max-w-5xl mt-16 border-0"
+        panelClassName="w-full max-w-6xl mt-8 border-0 overflow-hidden"
       >
         <div className="px-5 py-4 flex items-center gap-3 bg-oracle-dark-gray">
-          <h2 className="text-lg font-semibold text-white truncate">Source Page Preview</h2>
-          {sourcePreviewTitle && (
-            <span className="text-xs text-gray-300 truncate max-w-[60%]" title={sourcePreviewTitle}>
-              {sourcePreviewTitle}
-            </span>
-          )}
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-white truncate">Source Page Preview</h2>
+            {sourcePreviewTitle && (
+              <p className="text-xs text-gray-300 truncate" title={sourcePreviewTitle}>
+                {sourcePreviewTitle}
+              </p>
+            )}
+          </div>
           <div className="ml-auto" />
           <button
             type="button"
@@ -3451,28 +3690,96 @@ export function RAGChatPanel() {
             </svg>
           </button>
         </div>
-        <div className="p-0 bg-white/80 h-[72vh] min-h-[420px] overflow-y-auto overflow-x-hidden">
+        <div className="p-0 bg-white/80 h-[78vh] min-h-[500px] overflow-hidden">
           {sourcePreviewLoading ? (
             <div className="h-full min-h-[360px] flex items-center justify-center">
-              <LoadingState size="sm" label="Loading page image..." textClassName="text-oracle-medium-gray" />
-            </div>
-          ) : sourcePreviewError ? (
-            <div className="h-full min-h-[360px] flex items-center justify-center">
-              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                {sourcePreviewError}
-              </p>
-            </div>
-          ) : sourcePreviewImageUri ? (
-            <div className="w-full">
-              <img
-                src={sourcePreviewImageUri}
-                alt={sourcePreviewTitle || 'Source page'}
-                className="w-full h-auto block"
-              />
+              <LoadingState size="sm" label="Loading cited page..." textClassName="text-oracle-medium-gray" />
             </div>
           ) : (
-            <div className="h-full min-h-[360px] flex items-center justify-center">
-              <p className="text-sm text-oracle-medium-gray">No image available.</p>
+            <div className="grid h-full min-h-0 grid-cols-1 overflow-hidden md:grid-cols-2">
+              <div className="flex min-h-0 flex-col border-r border-oracle-border">
+                <div className="flex min-h-[46px] flex-shrink-0 items-center justify-between border-b border-oracle-border bg-gray-50 px-4 py-2">
+                  <span className="text-sm font-medium text-oracle-dark-gray">Page Image Preview</span>
+                  <span className="text-xs text-oracle-light-gray">
+                    Page {sourcePreviewPageNumber || '?'}
+                  </span>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto bg-white">
+                  {sourcePreviewImageUri ? (
+                    <div className="flex min-h-full items-start justify-center bg-white">
+                      <img
+                        src={sourcePreviewImageUri}
+                        alt={sourcePreviewTitle || 'Source page'}
+                        className="block w-full max-w-none bg-white"
+                      />
+                    </div>
+                  ) : (
+                    <div className="m-4 flex h-[calc(100%-2rem)] min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-300 bg-white px-6 text-center">
+                      <div>
+                        <p className="text-sm font-medium text-oracle-dark-gray">Preview unavailable</p>
+                        <p className="mt-1 text-xs leading-5 text-oracle-light-gray">
+                          {sourcePreviewImageError || 'The rendered page image was not generated for this page.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex min-h-0 flex-col overflow-hidden">
+                <div className="flex min-h-[46px] flex-shrink-0 items-center justify-between border-b border-oracle-border bg-gray-50 px-4 py-2">
+                  <span className="text-sm font-medium text-oracle-dark-gray">Markdown Content</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled
+                      className="p-1.5 rounded border border-gray-300 text-gray-400 opacity-40 cursor-not-allowed"
+                      title="Previous page disabled for cited-page preview"
+                      aria-label="Previous page"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      disabled
+                      className="p-1.5 rounded border border-gray-300 text-gray-400 opacity-40 cursor-not-allowed"
+                      title="Next page disabled for cited-page preview"
+                      aria-label="Next page"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copySourcePreviewMarkdown}
+                      disabled={Boolean(sourcePreviewMarkdownError || !sourcePreviewMarkdown)}
+                      className="p-1.5 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Copy Markdown"
+                      aria-label="Copy Markdown"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-auto bg-white p-3">
+                  {sourcePreviewMarkdownError ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">
+                      {sourcePreviewMarkdownError}
+                    </div>
+                  ) : (
+                    <div className="prose prose-sm max-w-none text-[13px] leading-5 text-oracle-dark-gray [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-bold [&_mark]:box-decoration-clone">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={sourcePreviewMarkdownComponents}>
+                        {sourcePreviewMarkdown}
+                      </ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -356,6 +356,7 @@ def _build_citations_and_sources(
                 file_id=int(item.file_id),
                 page_number=int(item.page_number),
                 object_name_page=str(item.object_name_page or ""),
+                snippet=str(item.summary_text or "")[:500],
             )
             for item in items
         ]

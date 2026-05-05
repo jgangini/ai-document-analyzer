@@ -42,6 +42,121 @@ _METADATA_STOPWORDS = {
     "uno",
     "y",
 }
+_METADATA_ANSWERABILITY_IGNORE_TOKENS = {
+    "actual",
+    "archivo",
+    "archivos",
+    "asociado",
+    "asociados",
+    "campo",
+    "campos",
+    "comparacion",
+    "comparar",
+    "compara",
+    "consulta",
+    "cual",
+    "cuales",
+    "cuando",
+    "cuanto",
+    "cuantos",
+    "cuanta",
+    "cuantas",
+    "del",
+    "detalle",
+    "diferencia",
+    "diferencias",
+    "dime",
+    "donde",
+    "el",
+    "en",
+    "es",
+    "existe",
+    "existen",
+    "file",
+    "files",
+    "filtra",
+    "folio",
+    "folios",
+    "hay",
+    "id",
+    "indica",
+    "la",
+    "las",
+    "lista",
+    "listame",
+    "lo",
+    "los",
+    "metadata",
+    "metadatos",
+    "muestra",
+    "muestrame",
+    "pdf",
+    "pdfs",
+    "por",
+    "para",
+    "que",
+    "quien",
+    "quienes",
+    "confirma",
+    "confirmar",
+    "reportada",
+    "reportadas",
+    "reportado",
+    "reportados",
+    "revisa",
+    "segun",
+    "se",
+    "si",
+    "son",
+    "su",
+    "tiene",
+    "tienen",
+    "usa",
+    "usando",
+    "valida",
+    "validacion",
+    "validar",
+    "valor",
+    "valores",
+    "versus",
+    "y",
+}
+_METADATA_OPEN_ANSWER_TOKENS = {
+    "analisis",
+    "analiza",
+    "analizar",
+    "causa",
+    "causas",
+    "conclusion",
+    "conclusiones",
+    "contexto",
+    "desarrolla",
+    "diagnostica",
+    "diagnostico",
+    "explica",
+    "explicar",
+    "fundamenta",
+    "fundamento",
+    "impacto",
+    "impactos",
+    "interpreta",
+    "interpretacion",
+    "justifica",
+    "justificacion",
+    "motivo",
+    "motivos",
+    "profundiza",
+    "razon",
+    "razones",
+    "recomienda",
+    "recomendacion",
+    "relaciona",
+    "relacion",
+    "riesgo",
+    "riesgos",
+    "sintesis",
+    "sintetiza",
+}
 _BOOLEAN_TRUE = {"1", "si", "s\u00ed", "true", "yes"}
 _BOOLEAN_FALSE = {"0", "false", "no"}
 _METADATA_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
@@ -167,6 +282,7 @@ class FactResolution:
     resolved_metadata_fields: list[str] = field(default_factory=list)
     metadata_only_reason: str = ""
     document_phase_required: bool = False
+    answerability_route: str = ""
 
 
 @dataclass(slots=True)
@@ -819,6 +935,7 @@ class QuestionFactResolver:
                     resolved_archive_slugs=resolved_archive_slugs,
                     resolved_metadata_fields=requested_fields,
                     document_phase_required=True,
+                    answerability_route="metadata_plus_documents",
                 ),
                 user_id=user_id,
                 file_ids=document_scope_file_ids or resolved_file_ids or file_ids,
@@ -953,6 +1070,16 @@ class QuestionFactResolver:
                         )
                     )
                 )
+                metadata_sufficient, answerability_reason = self._metadata_is_sufficient_for_answer(
+                    question=question,
+                    metadata_rows=metadata_rows,
+                    requested_fields=requested_fields,
+                    explicit_metadata_fields=explicit_metadata_fields,
+                    metadata_forced=metadata_forced,
+                    document_evidence_requested=document_evidence_requested,
+                    document_centric_question=document_centric_question,
+                )
+                should_require_document_followup = should_require_document_followup or not metadata_sufficient
                 if should_require_document_followup:
                     if document_evidence_requested:
                         note = (
@@ -965,6 +1092,8 @@ class QuestionFactResolver:
                     else:
                         note = (
                             "Metadata rows matched partially, but missing values require documentary evidence before concluding the comparison."
+                            if metadata_sufficient
+                            else f"Metadata rows matched requested fields, but {answerability_reason}."
                         )
                     return self._append_archive_metadata_context(
                         resolution=FactResolution(
@@ -976,6 +1105,7 @@ class QuestionFactResolver:
                             resolved_archive_slugs=resolved_archive_slugs,
                             resolved_metadata_fields=requested_fields,
                             document_phase_required=True,
+                            answerability_route="metadata_plus_documents",
                         ),
                         user_id=user_id,
                         file_ids=document_scope_file_ids or resolved_file_ids or file_ids,
@@ -990,6 +1120,7 @@ class QuestionFactResolver:
                     resolved_archive_slugs=resolved_archive_slugs,
                     resolved_metadata_fields=requested_fields,
                     metadata_only_reason="metadata_fields_sufficient",
+                    answerability_route="structured_only",
                 )
 
         if compare_requested and len(metadata_rows) >= 2:
@@ -1007,6 +1138,7 @@ class QuestionFactResolver:
                         resolved_archive_slugs=resolved_archive_slugs,
                         resolved_metadata_fields=requested_fields,
                         document_phase_required=True,
+                        answerability_route="metadata_plus_documents",
                     )
                 return FactResolution(
                     narrowed_file_ids=resolved_file_ids,
@@ -1022,6 +1154,7 @@ class QuestionFactResolver:
                     resolved_archive_slugs=resolved_archive_slugs,
                     resolved_metadata_fields=requested_fields,
                     metadata_only_reason="metadata_comparison_sufficient",
+                    answerability_route="structured_only",
                 )
 
         return self._append_archive_metadata_context(
@@ -1038,6 +1171,7 @@ class QuestionFactResolver:
                 resolved_archive_slugs=resolved_archive_slugs,
                 resolved_metadata_fields=requested_fields,
                 document_phase_required=True,
+                answerability_route="metadata_plus_documents",
             ),
             user_id=user_id,
             file_ids=document_scope_file_ids or resolved_file_ids or file_ids,
@@ -1138,6 +1272,7 @@ class QuestionFactResolver:
             resolved_metadata_fields=list(resolution.resolved_metadata_fields),
             metadata_only_reason=str(resolution.metadata_only_reason or ""),
             document_phase_required=bool(resolution.document_phase_required),
+            answerability_route=str(resolution.answerability_route or ""),
         )
 
     def _build_archive_metadata_context(self, *, user_id: int, file_ids: list[int]) -> str:
@@ -3025,6 +3160,108 @@ class QuestionFactResolver:
             )
         candidates.sort(key=lambda item: (-item[0], item[1], item[2].header.lower()))
         return candidates
+
+    @classmethod
+    def _metadata_answerability_tokens(
+        cls,
+        *,
+        question: str,
+    ) -> set[str]:
+        tokens: set[str] = set()
+        for token in cls._expanded_token_set(question):
+            if not token:
+                continue
+            if token in _METADATA_STOPWORDS or token in _METADATA_ANSWERABILITY_IGNORE_TOKENS:
+                continue
+            if any(ch.isdigit() for ch in token):
+                continue
+            if len(token) <= 1:
+                continue
+            tokens.add(token)
+        return tokens
+
+    @classmethod
+    def _metadata_field_answer_tokens(
+        cls,
+        *,
+        metadata_rows: list[ArchiveMetadataEntry],
+        requested_fields: list[str],
+    ) -> set[str]:
+        requested_bases = {
+            cls._normalize_metadata_field_base(field)
+            for field in list(requested_fields or [])
+            if cls._normalize_metadata_field_base(field)
+        }
+        if not requested_bases:
+            return set()
+        answer_tokens: set[str] = set()
+        for field in cls._build_metadata_schema(metadata_rows=metadata_rows):
+            if field.base not in requested_bases:
+                continue
+            answer_tokens.update(cls._expanded_token_set(field.header))
+            answer_tokens.update(cls._expanded_token_set(field.base))
+            for alias in _METADATA_FIELD_ALIASES.get(field.base, ()):
+                answer_tokens.update(cls._expanded_token_set(alias))
+            for display_value in field.display_values:
+                answer_tokens.update(cls._expanded_token_set(display_value))
+        return {
+            token
+            for token in answer_tokens
+            if token and token not in _METADATA_STOPWORDS and not any(ch.isdigit() for ch in token)
+        }
+
+    @classmethod
+    def _metadata_fields_cover_question(
+        cls,
+        *,
+        question: str,
+        metadata_rows: list[ArchiveMetadataEntry],
+        requested_fields: list[str],
+    ) -> tuple[bool, list[str]]:
+        question_tokens = cls._metadata_answerability_tokens(question=question)
+        if not question_tokens:
+            return True, []
+        answer_tokens = cls._metadata_field_answer_tokens(
+            metadata_rows=metadata_rows,
+            requested_fields=requested_fields,
+        )
+        if not answer_tokens:
+            return False, sorted(question_tokens)
+        missing = sorted(token for token in question_tokens if token not in answer_tokens)
+        return not missing, missing
+
+    @classmethod
+    def _metadata_question_requests_open_answer(cls, question: str) -> bool:
+        question_tokens = cls._metadata_answerability_tokens(question=question)
+        return any(token in question_tokens for token in _METADATA_OPEN_ANSWER_TOKENS)
+
+    @classmethod
+    def _metadata_is_sufficient_for_answer(
+        cls,
+        *,
+        question: str,
+        metadata_rows: list[ArchiveMetadataEntry],
+        requested_fields: list[str],
+        explicit_metadata_fields: bool,
+        metadata_forced: bool,
+        document_evidence_requested: bool,
+        document_centric_question: bool,
+    ) -> tuple[bool, str]:
+        if document_evidence_requested or document_centric_question:
+            return False, "document evidence was requested"
+        if explicit_metadata_fields or metadata_forced:
+            return True, "explicit metadata field request"
+        if cls._metadata_question_requests_open_answer(question):
+            return False, "the question asks for an explanatory answer"
+        covered, missing_tokens = cls._metadata_fields_cover_question(
+            question=question,
+            metadata_rows=metadata_rows,
+            requested_fields=requested_fields,
+        )
+        if covered:
+            return True, "requested metadata fields cover the question"
+        preview = ", ".join(missing_tokens[:6])
+        return False, "metadata fields do not cover the whole question" + (f" ({preview})" if preview else "")
 
     @classmethod
     def _field_is_explicit_analytics_target(

@@ -351,6 +351,36 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.app-sidebar .sidebar-chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(226, 213, 205, 0.34) rgba(255, 255, 255, 0.035);
+  scrollbar-gutter: stable;
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar {
+  width: 0.625rem;
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar-thumb {
+  min-height: 3rem;
+  border: 0.1875rem solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(rgba(226, 213, 205, 0.42), rgba(226, 213, 205, 0.42))
+    padding-box;
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(rgba(236, 226, 219, 0.58), rgba(236, 226, 219, 0.58))
+    padding-box;
+}
+
 .app-shell-dark .bg-oracle-bg-gray,
 .setup-shell-dark .bg-oracle-bg-gray {
   background-color: rgba(255, 255, 255, 0.045) !important;
@@ -850,6 +880,10 @@ body {
     inset 0 -1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 
+.app-shell-dark .chat-conversation-header.chat-conversation-header--menu-open {
+  overflow: visible;
+}
+
 .app-shell-dark .chat-conversation-header::before {
   content: '';
   position: absolute;
@@ -889,6 +923,31 @@ body {
 .app-shell-dark .chat-conversation-header button.text-oracle-medium-gray:hover {
   background: rgba(255, 255, 255, 0.12) !important;
   color: #ffffff !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu {
+  background: #ffffff !important;
+  border-color: #e7ddd6 !important;
+  color: #171412 !important;
+  box-shadow:
+    0 22px 56px rgba(49, 45, 42, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.92) inset !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .text-gray-700 {
+  color: #171412 !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .text-red-600 {
+  color: var(--oracle-red) !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .hover\:bg-gray-100:hover {
+  background-color: #f6f2ef !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .hover\:bg-red-50:hover {
+  background-color: #fff7f3 !important;
 }
 
 .app-shell-dark .app-light-surface .border-gray-100,

@@ -68,6 +68,7 @@ export type ChatSource = {
   file_id?: number;
   page_number?: number;
   object_name_page?: string;
+  snippet?: string;
 };
 
 export type GraphNodeDefinition = {
@@ -224,6 +225,7 @@ function normalizeSourceItems(sourceItems: any[], evidenceBySource: Map<number, 
     const fileName = String(item?.file_name || '').trim();
     const pageNumber = Number(item?.page_number ?? matchedEvidence?.page_number ?? 0);
     const fallbackName = String(item?.name || '').trim();
+    const snippet = String(item?.snippet ?? matchedEvidence?.summary_text ?? '').trim();
     return {
       doc_id: String(item?.doc_id || item?.source_number || index + 1),
       name: fallbackName || `${fileName || 'document'} - page ${pageNumber || '?'}`,
@@ -231,6 +233,7 @@ function normalizeSourceItems(sourceItems: any[], evidenceBySource: Map<number, 
       file_id: Number(item?.file_id ?? matchedEvidence?.file_id ?? 0) || undefined,
       page_number: pageNumber || undefined,
       object_name_page: String(item?.object_name_page ?? matchedEvidence?.object_name_page ?? ''),
+      snippet: snippet || undefined,
     };
   });
 }

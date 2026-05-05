@@ -68,6 +68,7 @@ class SourceItem(APIModel):
     file_id: int
     page_number: int
     object_name_page: str = ""
+    snippet: str = ""
 
 
 class AskQuestionResponse(APIModel):

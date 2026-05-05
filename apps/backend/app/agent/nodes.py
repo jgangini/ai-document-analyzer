@@ -7,6 +7,7 @@ from datetime import date
 from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
+from apps.backend.app.api.contracts.questions import EvidenceItem
 from apps.backend.app.agent.contracts import LLMResult
 from apps.backend.app.agent.router import GraphIntentRouter, GraphSearchResponder
 from apps.backend.app.agent.state import QAGraphState
@@ -20,6 +21,19 @@ from apps.backend.app.repositories.file_repository import FileRepository
 
 if TYPE_CHECKING:
     from apps.backend.app.agent.agents import AnalysisAgent, SupervisorAgent
+
+
+_METADATA_DOCUMENT_MIN_CANDIDATE_K = 80
+_METADATA_DOCUMENT_MIN_PAGES_PER_DOC = 2
+_METADATA_DOCUMENT_COVERAGE_SCOPE_LIMIT = 24
+
+
+@dataclass(frozen=True, slots=True)
+class _RetrievalControls:
+    candidate_k: int | None
+    min_pages_per_selected_doc: int
+    summary_mode: str
+    coverage_boosted: bool = False
 
 
 def _empty_visual_result() -> VisualInspectionResult:
@@ -39,6 +53,89 @@ def _merge_node_timing(state: QAGraphState, *, node_key: str, started_at: float)
     }
     timings[node_key] = max(0, int((perf_counter() - started_at) * 1000))
     return timings
+
+
+def _resolve_answerability_route(
+    *,
+    answerability_route: str,
+    metadata_phase_used: bool,
+    document_phase_required: bool,
+    answer_override: str | None,
+) -> str:
+    explicit_route = str(answerability_route or "").strip()
+    if explicit_route:
+        return explicit_route
+    if metadata_phase_used and document_phase_required:
+        return "metadata_plus_documents"
+    if metadata_phase_used and answer_override:
+        return "structured_only"
+    if document_phase_required:
+        return "documents_only"
+    return ""
+
+
+def _build_retrieval_question(
+    *,
+    question: str,
+    answerability_route: str = "",
+) -> str:
+    safe_question = str(question or "").strip()
+    if str(answerability_route or "").strip() == "metadata_plus_documents":
+        return (
+            f"{safe_question}\n\n"
+            "Busqueda documental ampliada: recuperar evidencia directa o indirecta sobre la pregunta, "
+            "incluyendo equivalentes, sinonimos, parafrasis, condiciones, excepciones, consecuencias, "
+            "obligaciones, restricciones, montos, fechas, plazos, estados, causas, efectos, "
+            "negaciones explicitas y ausencia de informacion relevante."
+        )
+    return safe_question
+
+
+def _resolve_retrieval_controls(state: QAGraphState) -> _RetrievalControls:
+    candidate_k = int(state.get("candidate_k")) if state.get("candidate_k") is not None else None
+    min_pages_per_selected_doc = max(0, int(state.get("min_pages_per_selected_doc") or 0))
+    summary_mode = str(state.get("summary_mode") or "default").strip() or "default"
+    answerability_route = str(state.get("answerability_route") or "").strip()
+    if answerability_route != "metadata_plus_documents":
+        return _RetrievalControls(
+            candidate_k=candidate_k,
+            min_pages_per_selected_doc=min_pages_per_selected_doc,
+            summary_mode=summary_mode,
+        )
+
+    scoped_file_ids = [int(file_id) for file_id in list(state.get("file_ids") or []) if int(file_id) > 0]
+    scoped_archive_slugs = [
+        str(item).strip()
+        for item in list(
+            state.get("resolved_archive_slugs")
+            or state.get("requested_archive_slugs")
+            or state.get("scope_archive_slugs")
+            or []
+        )
+        if str(item).strip()
+    ]
+    scoped_item_count = len(scoped_file_ids) or len(scoped_archive_slugs)
+    boosted_candidate_k = max(candidate_k or 0, _METADATA_DOCUMENT_MIN_CANDIDATE_K) or None
+    if scoped_item_count <= 0 or scoped_item_count > _METADATA_DOCUMENT_COVERAGE_SCOPE_LIMIT:
+        return _RetrievalControls(
+            candidate_k=boosted_candidate_k,
+            min_pages_per_selected_doc=min_pages_per_selected_doc,
+            summary_mode=summary_mode,
+            coverage_boosted=boosted_candidate_k != candidate_k,
+        )
+
+    boosted_min_pages = max(min_pages_per_selected_doc, _METADATA_DOCUMENT_MIN_PAGES_PER_DOC)
+    boosted_summary_mode = "per_document" if summary_mode == "default" else summary_mode
+    return _RetrievalControls(
+        candidate_k=boosted_candidate_k,
+        min_pages_per_selected_doc=boosted_min_pages,
+        summary_mode=boosted_summary_mode,
+        coverage_boosted=(
+            boosted_candidate_k != candidate_k
+            or boosted_min_pages != min_pages_per_selected_doc
+            or boosted_summary_mode != summary_mode
+        ),
+    )
 
 
 @dataclass(slots=True)
@@ -131,6 +228,7 @@ class QAGraphNodes:
             "resolved_archive_slugs": [],
             "resolved_metadata_fields": [],
             "metadata_only_reason": "",
+            "answerability_route": "",
             "evidence_recall_proxy": 0.0,
             "node_timings_ms": _merge_node_timing(state, node_key="search_response", started_at=started_at),
         }
@@ -213,6 +311,12 @@ class QAGraphNodes:
         should_skip_retrieval = bool(resolution.answer_override) and not bool(
             resolution.document_phase_required
         )
+        answerability_route = _resolve_answerability_route(
+            answerability_route=str(resolution.answerability_route or ""),
+            metadata_phase_used=bool(resolution.metadata_phase_used),
+            document_phase_required=bool(resolution.document_phase_required),
+            answer_override=resolution.answer_override,
+        )
         resolved_strategy = str(state.get("strategy") or "").strip()
         resolved_retrieval_route = str(state.get("retrieval_route") or "").strip()
         if should_skip_retrieval:
@@ -234,6 +338,7 @@ class QAGraphNodes:
             ),
             "resolved_metadata_fields": list(resolution.resolved_metadata_fields or []),
             "metadata_only_reason": str(resolution.metadata_only_reason or ""),
+            "answerability_route": answerability_route,
             "skip_retrieval": should_skip_retrieval,
             "strategy": resolved_strategy,
             "retrieval_route": resolved_retrieval_route,
@@ -243,7 +348,11 @@ class QAGraphNodes:
 
     def retrieve_candidates(self, state: QAGraphState) -> dict[str, Any]:
         started_at = perf_counter()
-        retrieval_question = str(state.get("effective_question") or state["question"]).strip()
+        retrieval_question = _build_retrieval_question(
+            question=str(state.get("effective_question") or state["question"]).strip(),
+            answerability_route=str(state.get("answerability_route") or ""),
+        )
+        retrieval_controls = _resolve_retrieval_controls(state)
         plan = self.supervisor.create_plan(
             question=retrieval_question,
             requested_top_k=int(state["top_k"]),
@@ -260,16 +369,27 @@ class QAGraphNodes:
                 or []
             ),
             top_k=plan.top_k,
-            candidate_k=int(state.get("candidate_k")) if state.get("candidate_k") is not None else None,
-            min_pages_per_selected_doc=max(0, int(state.get("min_pages_per_selected_doc") or 0)),
-            summary_mode=str(state.get("summary_mode") or "default"),
+            candidate_k=retrieval_controls.candidate_k,
+            min_pages_per_selected_doc=retrieval_controls.min_pages_per_selected_doc,
+            summary_mode=retrieval_controls.summary_mode,
             question_class=str(state.get("question_class") or "extractive"),
             scope_origin=str(state.get("scope_origin") or "global"),
         )
+        confidence_notes = list(state.get("confidence_notes") or [])
+        if retrieval_controls.coverage_boosted:
+            coverage_note = (
+                "Metadata+documents route expanded generic per-document retrieval coverage "
+                "within the resolved metadata scope."
+            )
+            if coverage_note not in confidence_notes:
+                confidence_notes.append(coverage_note)
         return {
             "strategy": plan.strategy,
             "selected_provider": plan.selected_provider,
             "evidence": list(retrieval_result.evidence),
+            "candidate_k": retrieval_controls.candidate_k,
+            "min_pages_per_selected_doc": retrieval_controls.min_pages_per_selected_doc,
+            "summary_mode": retrieval_controls.summary_mode,
             "scope_origin": str(
                 retrieval_result.telemetry.get("effective_scope_origin")
                 or state.get("scope_origin")
@@ -303,6 +423,7 @@ class QAGraphNodes:
             "retrieval_route": str(retrieval_result.telemetry.get("retrieval_route") or "global_semantic"),
             "evidence_recall_proxy": float(retrieval_result.telemetry.get("evidence_recall_proxy") or 0.0),
             "document_phase_used": True,
+            "confidence_notes": confidence_notes,
             "node_timings_ms": _merge_node_timing(state, node_key="retrieve_candidates", started_at=started_at),
         }
 
@@ -390,14 +511,20 @@ class QAGraphNodes:
         file_ids = list(state.get("file_ids") or [])
         requested_file_ids = list(state.get("requested_file_ids") or [])
         evidence = list(state.get("evidence") or [])
-        all_sources = [
-            {
+        def build_source_metadata(item: EvidenceItem, *, include_snippet: bool = False) -> dict[str, object]:
+            payload: dict[str, object] = {
                 "source_number": int(item.source_number),
                 "file_id": int(item.file_id),
                 "file_name": str(item.file_name),
                 "page_number": int(item.page_number),
                 "object_name_page": str(item.object_name_page or ""),
             }
+            if include_snippet:
+                payload["snippet"] = str(item.summary_text or "")[:500]
+            return payload
+
+        all_sources = [
+            build_source_metadata(item)
             for item in evidence
         ]
         selected_citations = sorted(
@@ -405,9 +532,9 @@ class QAGraphNodes:
         )
         selected_citations_set = set(selected_citations)
         cited_sources = [
-            source
-            for source in all_sources
-            if int(source.get("source_number") or 0) in selected_citations_set
+            build_source_metadata(item, include_snippet=True)
+            for item in evidence
+            if int(item.source_number) in selected_citations_set
         ]
         effective_sources = cited_sources if cited_sources else list(all_sources)
         distinct_files = sorted({int(item.file_id) for item in evidence if int(item.file_id) > 0})
@@ -430,6 +557,7 @@ class QAGraphNodes:
             "metadata_phase_used": bool(state.get("metadata_phase_used") or False),
             "document_phase_used": bool(state.get("document_phase_used") or False),
             "metadata_only_reason": str(state.get("metadata_only_reason") or ""),
+            "answerability_route": str(state.get("answerability_route") or ""),
             "conversation_scope_file_ids": [
                 int(item)
                 for item in list(state.get("conversation_scope_file_ids") or [])
@@ -460,6 +588,7 @@ class QAGraphNodes:
             "selected_provider": state.get("selected_provider") or "",
             "top_k": int(state.get("top_k") or 5),
             "candidate_k": int(state.get("candidate_k") or 0),
+            "min_pages_per_selected_doc": int(state.get("min_pages_per_selected_doc") or 0),
             "evidence_count": len(evidence),
             "distinct_files_in_evidence": len(distinct_files),
             "coverage_ratio": float(state.get("coverage_ratio") or 0.0),

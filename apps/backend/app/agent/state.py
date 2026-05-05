@@ -65,6 +65,7 @@ class QAGraphState(TypedDict):
     resolved_archive_slugs: NotRequired[list[str]]
     resolved_metadata_fields: NotRequired[list[str]]
     metadata_only_reason: NotRequired[str]
+    answerability_route: NotRequired[str]
     skip_retrieval: NotRequired[bool]
     strategy: NotRequired[str]
     selected_provider: NotRequired[str]

@@ -554,6 +554,123 @@ class GraphSynthesis:
         )
 
     @classmethod
+    def _question_requests_document_inventory_answer(cls, question: str) -> bool:
+        normalized = cls._normalize_text(question)
+        if not normalized:
+            return False
+        if any(
+            token in normalized
+            for token in (
+                "inventario documental",
+                "inventario de documentos",
+                "inventario de archivos",
+                "document inventory",
+                "lista de documentos",
+                "listado de documentos",
+                "lista los documentos",
+                "listar documentos",
+                "listame los documentos",
+                "muestrame los documentos",
+                "documentos del expediente",
+                "archivos del expediente",
+                "integran el expediente",
+                "documentos integran",
+                "archivos integran",
+                "que documentos tengo",
+                "que archivos tengo",
+                "cuales son los documentos",
+                "cuales son los archivos",
+            )
+        ):
+            return True
+        return bool(
+            re.search(
+                r"\b(?:que|cuales|lista|listar|listame|muestra|mostrar|muestrame|inventario|catalogo)\b"
+                r".{0,60}\b(?:documentos|archivos|pdfs?)\b",
+                normalized,
+            )
+            and re.search(
+                r"\b(?:asociad|vinculad|relacionad|integran|pertenecen|incluye|contiene|disponibles|cargad)\b",
+                normalized,
+            )
+        )
+
+    @classmethod
+    def _question_requests_provenance_map(cls, question: str) -> bool:
+        normalized = cls._normalize_text(question)
+        if not normalized:
+            return False
+        return bool(
+            any(
+                token in normalized
+                for token in (
+                    "de donde fue extraido",
+                    "de donde se extrajo",
+                    "donde fue extraido",
+                    "donde se extrajo",
+                    "origen de cada dato",
+                    "fuente de cada dato",
+                    "trazabilidad de cada dato",
+                    "provenance",
+                    "data lineage",
+                )
+            )
+            or (
+                "cada dato" in normalized
+                and any(token in normalized for token in ("fuente", "origen", "extraido", "extrajo"))
+            )
+        )
+
+    @classmethod
+    def _question_requests_document_level_synthesis(cls, question: str) -> bool:
+        normalized = cls._normalize_text(question)
+        if not normalized:
+            return False
+        if any(
+            token in normalized
+            for token in (
+                "por documento",
+                "por archivo",
+                "por pdf",
+                "documento por documento",
+                "archivo por archivo",
+                "cada documento",
+                "cada archivo",
+                "cada pdf",
+                "todos los documentos",
+                "todos los archivos",
+                "documentos seleccionados",
+                "archivos seleccionados",
+                "expediente completo",
+                "cobertura documental",
+                "resumen por documento",
+                "summarize each document",
+                "document by document",
+            )
+        ):
+            return True
+        return bool(
+            "expediente" in normalized
+            and "cada" in normalized
+            and any(token in normalized for token in ("instrumento", "variable", "gobierna", "rige", "sustenta"))
+        )
+
+    @classmethod
+    def _should_use_per_document_inventory_answer(cls, *, question: str, question_class: str) -> bool:
+        normalized_class = str(question_class or "").strip().lower()
+        return bool(
+            normalized_class == "inventory"
+            or cls._question_requests_document_inventory_answer(question)
+            or cls._question_requests_modification_map(question)
+            or cls._question_requests_people_details(question)
+            or cls._question_requests_provenance_map(question)
+            or (
+                normalized_class == "exhaustive_synthesis"
+                and cls._question_requests_document_level_synthesis(question)
+            )
+        )
+
+    @classmethod
     def _question_excerpt_focus_terms(cls, question: str) -> tuple[str, ...]:
         if not cls._question_requests_people_details(question):
             return ()
@@ -1137,7 +1254,14 @@ class GraphSynthesis:
         fact_context: str = "",
         question_class: str = "extractive",
     ) -> LLMResult:
-        if str(summary_mode).strip().lower() == "per_document":
+        use_per_document_inventory_answer = (
+            str(summary_mode).strip().lower() == "per_document"
+            and self._should_use_per_document_inventory_answer(
+                question=question,
+                question_class=question_class,
+            )
+        )
+        if use_per_document_inventory_answer:
             return self._synthesize_per_document_map_reduce(
                 question=question,
                 evidence=evidence,
@@ -1171,6 +1295,11 @@ class GraphSynthesis:
             "CITATIONS: <numeros de fuentes separados por coma, ejemplo 1,2>\n"
             "Reglas adicionales:\n"
             "- Si hay metadata findings y evidencia documental, combina ambas capas de forma explicita en ANSWER.\n"
+            "- En respuestas mixtas, abre con la metadata solo como contexto y fundamenta la conclusion con evidencia documental.\n"
+            "- Si hay multiples archivos o grupos relacionados, organiza la respuesta por archivo/grupo antes de la conclusion compuesta.\n"
+            "- No trates metadata findings como citas documentales; las citas deben venir de Evidence/CITATIONS.\n"
+            "- Cierra respuestas mixtas con una frase breve que deje claro que se puede profundizar en un archivo, campo o hallazgo.\n"
+            "- No incluyas secciones de cobertura, inventario documental, metadata clave o lectura OCR salvo que la pregunta las pida expresamente.\n"
             "- Si la pregunta pide una lista clave-valor, campos o valores importantes, usa una tabla Markdown con columnas Campo, Valor, Fuente y Nota.\n"
             "- No escribas 'revisado ok' como conclusion de cobertura; si ese texto viene de metadata, identificalo como valor de metadata.\n"
             "- Si no existe evidencia suficiente para un campo, escribe 'No encontrado en la evidencia OCR provista' en vez de dejarlo vacio.\n"
