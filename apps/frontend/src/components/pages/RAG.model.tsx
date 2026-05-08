@@ -376,6 +376,38 @@ export function summarizeDocumentsQueue(documents: any[]): {
   );
 }
 
+export function filterRagDocuments(documents: any[], statusFilter: string, searchTerm: string): any[] {
+  const normalizedSearch = searchTerm.toLowerCase();
+  return documents.filter((doc: any) => {
+    if (statusFilter && String(doc?.status || '') !== statusFilter) {
+      return false;
+    }
+    if (!normalizedSearch) return true;
+    return (
+      doc.filename?.toLowerCase().includes(normalizedSearch) ||
+      doc.original_name?.toLowerCase().includes(normalizedSearch) ||
+      getDocumentDisplayName(doc).toLowerCase().includes(normalizedSearch)
+    );
+  });
+}
+
+export function getSelectedRagDocuments(documents: any[], selectedDocumentIds: number[]): any[] {
+  const selectedDocumentIdSet = new Set(selectedDocumentIds);
+  return documents.filter((doc: any) => selectedDocumentIdSet.has(Number(doc.id)));
+}
+
+export function getSelectableDocumentIds(documents: any[]): number[] {
+  return documents
+    .map((doc: any) => Number(doc.id))
+    .filter((docId) => Number.isFinite(docId) && docId > 0);
+}
+
+export function getAvailableDocumentIdsSignature(documents: any[]): string {
+  return getSelectableDocumentIds(documents)
+    .sort((left, right) => left - right)
+    .join(',');
+}
+
 export function getPreparedItemKey(item: UploadPreparationItem): string {
   return `${item.group_source_path}::${item.source_path}`;
 }
@@ -385,6 +417,10 @@ export function countEnabledPreparedItems(groups: UploadPreparationGroup[]): num
     (total, group) => total + group.items.filter((item) => item.enabled).length,
     0
   );
+}
+
+export function countPreparedItems(groups: UploadPreparationGroup[]): number {
+  return groups.reduce((total, group) => total + group.items.length, 0);
 }
 
 export function mergePreparedGroups(
@@ -428,6 +464,211 @@ export function formatCountLabel(count: number, singular: string, plural?: strin
   const safeCount = Math.max(0, Number(count || 0));
   const label = safeCount === 1 ? singular : plural || `${singular}s`;
   return `${safeCount} ${label}`;
+}
+
+export type FilteredUploadDraftGroup = {
+  group: UploadPreparationGroup;
+  items: UploadPreparationItem[];
+  groupMatches: boolean;
+};
+
+export function filterUploadDraftGroups(
+  groups: UploadPreparationGroup[],
+  uploadDraftFilter: string
+): FilteredUploadDraftGroup[] {
+  const normalizedFilter = uploadDraftFilter.trim().toLowerCase();
+  if (!normalizedFilter) {
+    return groups.map((group) => ({
+      group,
+      items: group.items,
+      groupMatches: false,
+    }));
+  }
+
+  return groups.reduce<FilteredUploadDraftGroup[]>((accumulator, group) => {
+    const groupSearchText = [group.group_name, group.group_kind, group.archive_slug]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const groupMatches = groupSearchText.includes(normalizedFilter);
+    const items = groupMatches
+      ? group.items
+      : group.items.filter((item) =>
+          [
+            item.display_name,
+            item.file_name,
+            item.document_code,
+            item.document_language,
+            item.access,
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedFilter)
+        );
+
+    if (groupMatches || items.length > 0) {
+      accumulator.push({
+        group,
+        items,
+        groupMatches,
+      });
+    }
+    return accumulator;
+  }, []);
+}
+
+export function countMetadataMatchedPreparedItems(
+  groups: UploadPreparationGroup[],
+  metadataPreviewFileKeySet: Set<string>,
+  hasMetadataSelection: boolean
+): number {
+  if (!hasMetadataSelection) return 0;
+  return groups.reduce(
+    (total, group) =>
+      total +
+      group.items.filter((item) =>
+        metadataPreviewFileKeySet.has(normalizeMetadataFileKey(item.archive_slug))
+      ).length,
+    0
+  );
+}
+
+export function buildPreparedUploadsSummary({
+  isPreparing,
+  hasPreparedUploads,
+  totalPreparedItems,
+  enabledPreparedItems,
+  hasMetadataSelection,
+  selectedMetadataLabel,
+  metadataMatchedPreparedItems,
+}: {
+  isPreparing: boolean;
+  hasPreparedUploads: boolean;
+  totalPreparedItems: number;
+  enabledPreparedItems: number;
+  hasMetadataSelection: boolean;
+  selectedMetadataLabel: string;
+  metadataMatchedPreparedItems: number;
+}): string {
+  if (isPreparing) {
+    return 'Preparing files...';
+  }
+  if (!hasPreparedUploads) {
+    return `Select PDF or ZIP files to prepare the ingestion batch.${
+      hasMetadataSelection ? ` Metadata: ${selectedMetadataLabel || 'selected'}` : ''
+    }`;
+  }
+  return `${formatCountLabel(totalPreparedItems, 'file')} total \u00B7 ${enabledPreparedItems} selected${
+    hasMetadataSelection
+      ? ` \u00B7 metadata ${selectedMetadataLabel || 'selected'} (${metadataMatchedPreparedItems} matched)`
+      : ''
+  }`;
+}
+
+export function findDuplicatePreparedDocuments(
+  documents: any[],
+  enabledItems: UploadPreparationItem[]
+): any[] {
+  const duplicateById = new Map<string, any>();
+  documents.forEach((document: any) => {
+    const documentName = String(document.original_name || document.filename || '').trim().toLowerCase();
+    if (!documentName) {
+      return;
+    }
+    if (enabledItems.some((item) => item.file_name.toLowerCase() === documentName)) {
+      duplicateById.set(String(document.id), document);
+    }
+  });
+  return Array.from(duplicateById.values());
+}
+
+export function pruneSelectedDocumentIds(
+  previousIds: number[],
+  availableDocumentIds: Set<number>
+): number[] {
+  const nextIds = previousIds.filter((docId) => availableDocumentIds.has(docId));
+  if (
+    nextIds.length === previousIds.length &&
+    nextIds.every((docId, index) => docId === previousIds[index])
+  ) {
+    return previousIds;
+  }
+  return nextIds;
+}
+
+export function toggleSelectedDocumentId(
+  previousIds: number[],
+  documentId: number,
+  selected: boolean
+): number[] {
+  if (selected) {
+    return previousIds.includes(documentId) ? previousIds : [...previousIds, documentId];
+  }
+  return previousIds.filter((currentId) => currentId !== documentId);
+}
+
+export function toggleVisibleDocumentIds(
+  previousIds: number[],
+  visibleDocumentIds: number[],
+  selected: boolean
+): number[] {
+  const previousIdSet = new Set(previousIds);
+  if (selected) {
+    visibleDocumentIds.forEach((documentId) => previousIdSet.add(documentId));
+  } else {
+    visibleDocumentIds.forEach((documentId) => previousIdSet.delete(documentId));
+  }
+  return Array.from(previousIdSet);
+}
+
+export function cloneUploadDraftGroups(groups: UploadPreparationGroup[]): UploadPreparationGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item })),
+  }));
+}
+
+export function removeUploadDraftGroupBySource(
+  groups: UploadPreparationGroup[],
+  groupSourcePath: string
+): UploadPreparationGroup[] {
+  return groups.filter((group) => group.group_source_path !== groupSourcePath);
+}
+
+export function setUploadDraftGroupEnabled(
+  groups: UploadPreparationGroup[],
+  groupSourcePath: string,
+  enabled: boolean
+): UploadPreparationGroup[] {
+  return groups.map((group) => {
+    if (group.group_source_path !== groupSourcePath) {
+      return group;
+    }
+    return {
+      ...group,
+      items: group.items.map((item) => ({ ...item, enabled })),
+    };
+  });
+}
+
+export function patchUploadDraftItem(
+  groups: UploadPreparationGroup[],
+  groupSourcePath: string,
+  sourcePath: string,
+  patch: Partial<UploadPreparationItem>
+): UploadPreparationGroup[] {
+  return groups.map((group) => {
+    if (group.group_source_path !== groupSourcePath) {
+      return group;
+    }
+    return {
+      ...group,
+      items: group.items.map((item) =>
+        item.source_path === sourcePath ? { ...item, ...patch } : item
+      ),
+    };
+  });
 }
 
 export const compactUploadDraftSelectClassName = 'input-oracle !h-7 !px-2 !py-0 !pr-7 !text-[11px] !leading-tight bg-white';

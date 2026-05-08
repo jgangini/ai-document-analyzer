@@ -2,8 +2,6 @@ import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../common/Layout';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
-import { LoadingState } from '../common/LoadingState';
-import { ModalPortal } from '../common/ModalPortal';
 import { queryKeys } from '../../lib/queryClient';
 import {
   type MetadataUploadSummary,
@@ -15,29 +13,33 @@ import { ragApi } from '../../services/ragApi';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import {
-  ACCESS_OPTIONS,
-  compactUploadDraftFieldLabelClassName,
-  compactUploadDraftSelectClassName,
+  buildPreparedUploadsSummary,
+  cloneUploadDraftGroups,
+  countMetadataMatchedPreparedItems,
   countEnabledPreparedItems,
+  countPreparedItems,
   DEFAULT_UPLOAD_ACCESS,
   DEFAULT_UPLOAD_LANGUAGE,
   DeleteDocumentConfirmMessage,
-  formatCountLabel,
-  formatUploadGroupKind,
+  filterRagDocuments,
+  filterUploadDraftGroups,
+  findDuplicatePreparedDocuments,
+  getAvailableDocumentIdsSignature,
   getDocumentDisplayName,
-  getPreparedItemKey,
-  getUploadDraftMetadataMatchPresentation,
+  getSelectableDocumentIds,
+  getSelectedRagDocuments,
   hasDocumentsInFlight,
   ITEMS_PER_PAGE,
-  LANGUAGE_OPTIONS,
   mergePreparedGroups,
   normalizeDocumentsPayload,
   normalizeMetadataFileKey,
+  patchUploadDraftItem,
+  pruneSelectedDocumentIds,
+  removeUploadDraftGroupBySource,
+  setUploadDraftGroupEnabled,
   summarizeDocumentsQueue,
-  uploadDraftActionButtonClassName,
-  uploadDraftControlGridClassName,
-  uploadDraftMetadataSelectClassName,
-  uploadDraftRowGridClassName,
+  toggleSelectedDocumentId,
+  toggleVisibleDocumentIds,
 } from './RAG.model';
 import type {
   UploadDraftMetadataMatchState,
@@ -46,7 +48,10 @@ import { DocumentViewerModal } from './RAGDocumentViewerModal';
 import { RAGDocumentTable } from './RAGDocumentTable';
 import { EditDocumentModal } from './RAGEditDocumentModal';
 import { RAGQueueSummary } from './RAGQueueSummary';
+import { RAGReplaceConfirmModal } from './RAGReplaceConfirmModal';
 import { RAGToolbar } from './RAGToolbar';
+import { RAGUploadDraftList } from './RAGUploadDraftList';
+import { RAGUploadModal } from './RAGUploadModal';
 
 export function RAG() {
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -343,28 +348,15 @@ export function RAG() {
     [documentsData?.data]
   );
   const queue = summarizeDocumentsQueue(documentsRaw);
-  const filteredDocuments = documentsRaw.filter((doc: any) => {
-    if (statusFilter && String(doc?.status || '') !== statusFilter) {
-      return false;
-    }
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return doc.filename?.toLowerCase().includes(search) ||
-           doc.original_name?.toLowerCase().includes(search) ||
-           getDocumentDisplayName(doc).toLowerCase().includes(search);
-  });
+  const filteredDocuments = filterRagDocuments(documentsRaw, statusFilter, searchTerm);
   const selectedDocumentIdSet = new Set(selectedDocumentIds);
-  const selectedDocuments = documentsRaw.filter((doc: any) =>
-    selectedDocumentIdSet.has(Number(doc.id))
-  );
+  const selectedDocuments = getSelectedRagDocuments(documentsRaw, selectedDocumentIds);
   const totalDocuments = filteredDocuments.length;
   const totalPages = Math.ceil(totalDocuments / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const documents = filteredDocuments.slice(startIndex, endIndex);
-  const selectableCurrentPageDocumentIds = documents
-    .map((doc: any) => Number(doc.id))
-    .filter((docId) => Number.isFinite(docId) && docId > 0);
+  const selectableCurrentPageDocumentIds = getSelectableDocumentIds(documents);
   const allCurrentPageDocumentsSelected =
     selectableCurrentPageDocumentIds.length > 0 &&
     selectableCurrentPageDocumentIds.every((docId) => selectedDocumentIdSet.has(docId));
@@ -372,10 +364,7 @@ export function RAG() {
     !allCurrentPageDocumentsSelected &&
     selectableCurrentPageDocumentIds.some((docId) => selectedDocumentIdSet.has(docId));
   const enabledPreparedItems = countEnabledPreparedItems(uploadDraftGroups);
-  const totalPreparedItems = uploadDraftGroups.reduce(
-    (total, group) => total + group.items.length,
-    0
-  );
+  const totalPreparedItems = countPreparedItems(uploadDraftGroups);
   const hasPreparedUploads = uploadDraftGroups.length > 0;
   const normalizedUploadDraftFilter = uploadDraftFilter.trim().toLowerCase();
   const hasUploadDraftFilter = normalizedUploadDraftFilter.length > 0;
@@ -395,39 +384,27 @@ export function RAG() {
       ? 'matched'
       : 'unmatched';
   };
-  const metadataMatchedPreparedItems = hasMetadataSelection
-    ? uploadDraftGroups.reduce(
-        (total, group) =>
-          total +
-          group.items.filter((item) =>
-            metadataPreviewFileKeySet.has(normalizeMetadataFileKey(item.archive_slug))
-          ).length,
-        0
-      )
-    : 0;
-  const preparedUploadsSummary = prepareUploadMutation.isPending
-    ? 'Preparing files...'
-    : hasPreparedUploads
-    ? `${formatCountLabel(totalPreparedItems, 'file')} total \u00B7 ${enabledPreparedItems} selected${
-        hasMetadataSelection
-          ? ` \u00B7 metadata ${selectedMetadataLabel || 'selected'} (${metadataMatchedPreparedItems} matched)`
-          : ''
-      }`
-    : `Select PDF or ZIP files to prepare the ingestion batch.${
-        hasMetadataSelection ? ` Metadata: ${selectedMetadataLabel || 'selected'}` : ''
-      }`;
+  const metadataMatchedPreparedItems = countMetadataMatchedPreparedItems(
+    uploadDraftGroups,
+    metadataPreviewFileKeySet,
+    hasMetadataSelection
+  );
+  const preparedUploadsSummary = buildPreparedUploadsSummary({
+    isPreparing: prepareUploadMutation.isPending,
+    hasPreparedUploads,
+    totalPreparedItems,
+    enabledPreparedItems,
+    hasMetadataSelection,
+    selectedMetadataLabel,
+    metadataMatchedPreparedItems,
+  });
   const canProcessUploadDraft =
     enabledPreparedItems > 0 &&
     !prepareUploadMutation.isPending &&
     !processUploadMutation.isPending;
 
   const availableDocumentIdsSignature = useMemo(
-    () =>
-      documentsRaw
-        .map((doc: any) => Number(doc.id))
-        .filter((docId) => Number.isFinite(docId) && docId > 0)
-        .sort((left, right) => left - right)
-        .join(','),
+    () => getAvailableDocumentIdsSignature(documentsRaw),
     [documentsRaw]
   );
 
@@ -437,16 +414,9 @@ export function RAG() {
         ? availableDocumentIdsSignature.split(',').map((value) => Number(value))
         : []
     );
-    setSelectedDocumentIds((previousIds) => {
-      const nextIds = previousIds.filter((docId) => availableDocumentIds.has(docId));
-      if (
-        nextIds.length === previousIds.length &&
-        nextIds.every((docId, index) => docId === previousIds[index])
-      ) {
-        return previousIds;
-      }
-      return nextIds;
-    });
+    setSelectedDocumentIds((previousIds) =>
+      pruneSelectedDocumentIds(previousIds, availableDocumentIds)
+    );
   }, [availableDocumentIdsSignature]);
 
   useEffect(() => {
@@ -467,53 +437,10 @@ export function RAG() {
     setMetadataPreviewFileKeys(Array.from(new Set(rowKeys)));
   }, [selectedMetadataDetailQuery.data?.rows, selectedMetadataUploadId]);
 
-  const filteredUploadDraftGroups = uploadDraftGroups.reduce<
-    Array<{
-      group: UploadPreparationGroup;
-      items: UploadPreparationItem[];
-      groupMatches: boolean;
-    }>
-  >((accumulator, group) => {
-    if (!hasUploadDraftFilter) {
-      accumulator.push({
-        group,
-        items: group.items,
-        groupMatches: false,
-      });
-      return accumulator;
-    }
-
-    const groupSearchText = [group.group_name, group.group_kind, group.archive_slug]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    const groupMatches = groupSearchText.includes(normalizedUploadDraftFilter);
-        const items = groupMatches
-      ? group.items
-      : group.items.filter((item) =>
-          [
-            item.display_name,
-            item.file_name,
-            item.document_code,
-            item.document_language,
-            item.access,
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedUploadDraftFilter)
-        );
-
-    if (groupMatches || items.length > 0) {
-      accumulator.push({
-        group,
-        items,
-        groupMatches,
-      });
-    }
-
-    return accumulator;
-  }, []);
+  const filteredUploadDraftGroups = filterUploadDraftGroups(
+    uploadDraftGroups,
+    uploadDraftFilter
+  );
 
   const clearMetadataSelection = () => {
     setSelectedMetadataUploadId('');
@@ -539,7 +466,7 @@ export function RAG() {
 
   const removeUploadDraftGroup = (groupSourcePath: string) => {
     setUploadDraftGroups((previousGroups) =>
-      previousGroups.filter((group) => group.group_source_path !== groupSourcePath)
+      removeUploadDraftGroupBySource(previousGroups, groupSourcePath)
     );
     setCollapsedUploadGroups((previousGroups) => {
       if (!(groupSourcePath in previousGroups)) {
@@ -560,15 +487,7 @@ export function RAG() {
 
   const updateUploadDraftGroupEnabled = (groupSourcePath: string, enabled: boolean) => {
     setUploadDraftGroups((previousGroups) =>
-      previousGroups.map((group) => {
-        if (group.group_source_path !== groupSourcePath) {
-          return group;
-        }
-        return {
-          ...group,
-          items: group.items.map((item) => ({ ...item, enabled })),
-        };
-      })
+      setUploadDraftGroupEnabled(previousGroups, groupSourcePath, enabled)
     );
   };
 
@@ -578,17 +497,7 @@ export function RAG() {
     patch: Partial<UploadPreparationItem>
   ) => {
     setUploadDraftGroups((previousGroups) =>
-      previousGroups.map((group) => {
-        if (group.group_source_path !== groupSourcePath) {
-          return group;
-        }
-        return {
-          ...group,
-          items: group.items.map((item) =>
-            item.source_path === sourcePath ? { ...item, ...patch } : item
-          ),
-        };
-      })
+      patchUploadDraftItem(previousGroups, groupSourcePath, sourcePath, patch)
     );
   };
 
@@ -607,25 +516,12 @@ export function RAG() {
       return;
     }
 
-    const duplicateById = new Map<string, any>();
-    documentsRaw.forEach((document: any) => {
-      const documentName = String(document.original_name || document.filename || '').trim().toLowerCase();
-      if (!documentName) {
-        return;
-      }
-      if (enabledItems.some((item) => item.file_name.toLowerCase() === documentName)) {
-        duplicateById.set(String(document.id), document);
-      }
-    });
-    const duplicateDocs = Array.from(duplicateById.values());
+    const duplicateDocs = findDuplicatePreparedDocuments(documentsRaw, enabledItems);
 
     if (duplicateDocs.length > 0) {
       setReplaceConfirm({
         duplicateDocs,
-        groups: uploadDraftGroups.map((group) => ({
-          ...group,
-          items: group.items.map((item) => ({ ...item })),
-        })),
+        groups: cloneUploadDraftGroups(uploadDraftGroups),
       });
       return;
     }
@@ -642,24 +538,15 @@ export function RAG() {
     if (!Number.isFinite(documentId) || documentId <= 0) {
       return;
     }
-    setSelectedDocumentIds((previousIds) => {
-      if (selected) {
-        return previousIds.includes(documentId) ? previousIds : [...previousIds, documentId];
-      }
-      return previousIds.filter((currentId) => currentId !== documentId);
-    });
+    setSelectedDocumentIds((previousIds) =>
+      toggleSelectedDocumentId(previousIds, documentId, selected)
+    );
   };
 
   const toggleAllVisibleDocuments = (selected: boolean) => {
-    setSelectedDocumentIds((previousIds) => {
-      const previousIdSet = new Set(previousIds);
-      if (selected) {
-        selectableCurrentPageDocumentIds.forEach((documentId) => previousIdSet.add(documentId));
-      } else {
-        selectableCurrentPageDocumentIds.forEach((documentId) => previousIdSet.delete(documentId));
-      }
-      return Array.from(previousIdSet);
-    });
+    setSelectedDocumentIds((previousIds) =>
+      toggleVisibleDocumentIds(previousIds, selectableCurrentPageDocumentIds, selected)
+    );
   };
 
   const openSingleDocumentEditor = (doc: any) => {
@@ -682,19 +569,6 @@ export function RAG() {
       return;
     }
     setDeletingDocs(selectedDocuments);
-  };
-
-  const highlightText = (text: string | undefined, search: string) => {
-    if (!text || !search) return text || '-';
-    const index = text.toLowerCase().indexOf(search.toLowerCase());
-    if (index === -1) return text;
-    return (
-      <>
-        {text.slice(0, index)}
-        <span className="bg-yellow-200 px-0.5 rounded">{text.slice(index, index + search.length)}</span>
-        {text.slice(index + search.length)}
-      </>
-    );
   };
 
   return (
@@ -773,487 +647,59 @@ export function RAG() {
         </div>
 
         {showUploadModal && (
-          <ModalPortal zIndex="z-[300]" className="items-start justify-center p-4">
-            <div
-              className="rounded-2xl shadow-2xl overflow-hidden max-w-6xl w-full border-0 max-h-[min(820px,calc(100vh-2rem))] flex flex-col"
-              style={{
-                background: 'rgba(255,255,255,0.72)',
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              }}
-            >
-              <div className="bg-oracle-dark-gray px-5 py-4">
-                <div className="flex items-start gap-4">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-semibold text-white">Files</h2>
-                    <p className="mt-1 text-sm text-gray-200">{preparedUploadsSummary}</p>
-                  </div>
-
-                  <div className="ml-auto flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={closeUploadModal}
-                      className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-gray-200"
-                      aria-label="Close upload modal"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white px-6 pb-6 pt-4 flex flex-1 min-h-0 flex-col gap-4">
-                <input
-                  id="upload-rag-files-input"
-                  type="file"
-                  multiple
-                  accept=".pdf,.zip"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-
-                <div className="-mx-6 -mt-4 flex flex-1 min-h-0 flex-col overflow-hidden border-y border-gray-200 bg-white">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <label
-                          htmlFor="upload-rag-files-input"
-                          className={uploadDraftActionButtonClassName}
-                        >
-                          + Add files
-                        </label>
-
-                        <select
-                          value={selectedMetadataUploadId}
-                          onChange={(e) => handleExistingMetadataSelect(e.target.value)}
-                          disabled={metadataUploadsQuery.isLoading}
-                          className={uploadDraftMetadataSelectClassName}
-                          title="Select an existing metadata dataset"
-                        >
-                          <option value="">
-                            {metadataUploadsQuery.isLoading ? 'Loading metadata...' : 'Select metadata...'}
-                          </option>
-                          {(metadataUploadsQuery.data || []).map((dataset: MetadataUploadSummary) => (
-                            <option key={dataset.metadata_upload_id} value={dataset.metadata_upload_id}>
-                              {dataset.display_name || dataset.source_file_name} ({dataset.columns.length} cols)
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {hasPreparedUploads && (
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            value={uploadDraftFilter}
-                            onChange={(e) => setUploadDraftFilter(e.target.value)}
-                            placeholder="Filter by folder or document..."
-                            className="input-oracle w-full pr-10"
-                          />
-                          {uploadDraftFilter && (
-                            <button
-                              type="button"
-                              onClick={() => setUploadDraftFilter('')}
-                              className="absolute inset-y-0 right-2 flex items-center rounded-md px-2 text-oracle-light-gray transition-colors hover:text-oracle-dark-gray"
-                              aria-label="Clear upload filter"
-                            >
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <p className="mt-2 text-xs text-oracle-medium-gray">
-                      The first column must be exactly <code>file</code> and match the logical archive name without
-                      extension. Upload or update metadata from the Metadata module, then select it here.
-                      {selectedMetadataUpload ? (
-                        <>
-                          {' '}
-                          <span className="font-medium text-oracle-dark-gray">
-                            Metadata selected: {selectedMetadataLabel}.
-                          </span>
-                        </>
-                      ) : null}
-                      {hasMetadataSelection && totalPreparedItems > 0
-                        ? ` Current batch: ${metadataMatchedPreparedItems} matched, ${
-                            totalPreparedItems - metadataMatchedPreparedItems
-                          } without metadata.`
-                        : ''}
-                    </p>
-                  </div>
-
-                  {!hasPreparedUploads ? (
-                    prepareUploadMutation.isPending ? (
-                      <div className="flex flex-1 min-h-[280px] items-center justify-center px-6 py-12">
-                        <LoadingState
-                          size="md"
-                          label="Preparing files..."
-                          textClassName="text-oracle-medium-gray"
-                        />
-                      </div>
-                    ) : (
-                      <div className="flex flex-1 items-center p-6">
-                        <div
-                          className={`w-full border-2 border-dashed rounded-lg px-6 py-6 text-center transition-all cursor-pointer ${
-                            isDragging
-                              ? 'border-oracle-red bg-red-50'
-                              : 'border-gray-300 bg-gray-50 hover:bg-gray-100'
-                          }`}
-                          onDragEnter={handleDragOver}
-                          onDragLeave={handleDragLeave}
-                          onDragOver={handleDragOver}
-                          onDrop={handleDrop}
-                        >
-                          <div className="text-gray-600 mb-1">
-                            <strong>Drag and Drop</strong>
-                          </div>
-                          <div className="text-sm text-gray-500 mb-1">
-                            Select one or more PDF or ZIP files, or drop them here
-                          </div>
-                          <div className="text-xs text-gray-500 mb-2">
-                            ZIP uploads are expanded first so you can review metadata coverage, language, and access.
-                          </div>
-                          <label
-                            htmlFor="upload-rag-files-input"
-                            className="text-oracle-blue-link hover:underline text-sm cursor-pointer"
-                          >
-                            Select file(s)
-                          </label>
-                        </div>
-                      </div>
-                    )
-                  ) : (
-                    <>
-                      {filteredUploadDraftGroups.length > 0 && (
-                        <div className="hidden xl:grid grid-cols-[minmax(0,1fr)_450px] items-end gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 pl-16">
-                          <div />
-                          <div className={uploadDraftControlGridClassName}>
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-oracle-medium-gray">
-                              Metadata
-                            </span>
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-oracle-medium-gray">
-                              Language
-                            </span>
-                            <span className="text-[11px] font-semibold uppercase tracking-wide text-oracle-medium-gray">
-                              Access
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="min-h-0 flex-1 overflow-y-auto">
-                        {filteredUploadDraftGroups.length === 0 ? (
-                          <div className="px-4 py-8 text-center text-sm text-oracle-medium-gray">
-                            No prepared files match this filter.
-                          </div>
-                        ) : (
-                          filteredUploadDraftGroups.map(({ group, items, groupMatches }, groupIndex) => {
-                            const totalGroupItems = group.items.length;
-                            const enabledGroupItems = group.items.filter((item) => item.enabled).length;
-                            const isGroupCollapsed =
-                              hasUploadDraftFilter ? false : Boolean(collapsedUploadGroups[group.group_source_path]);
-                            const isGroupChecked = totalGroupItems > 0 && enabledGroupItems === totalGroupItems;
-
-                            return (
-                              <div
-                                key={group.group_source_path}
-                                className={groupIndex > 0 ? 'border-t border-gray-200' : ''}
-                              >
-                        <div className="flex items-center gap-3 px-4 py-1">
-                          <button
-                            type="button"
-                            onClick={() => toggleUploadDraftGroup(group.group_source_path)}
-                            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-oracle-medium-gray transition-colors hover:bg-gray-100"
-                            aria-label={isGroupCollapsed ? 'Expand group' : 'Collapse group'}
-                          >
-                            <svg
-                              className={`h-4 w-4 transition-transform ${
-                                isGroupCollapsed ? '-rotate-90' : 'rotate-0'
-                              }`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-
-                          <input
-                            type="checkbox"
-                            checked={isGroupChecked}
-                            onChange={(e) =>
-                              updateUploadDraftGroupEnabled(group.group_source_path, e.target.checked)
-                            }
-                            className="h-4 w-4 rounded border-gray-300 text-oracle-red accent-oracle-red focus:ring-oracle-red"
-                          />
-
-                          <span className="text-oracle-medium-gray">
-                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"
-                              />
-                            </svg>
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => toggleUploadDraftGroup(group.group_source_path)}
-                            className="min-w-0 flex-1 text-left"
-                          >
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="truncate text-sm font-semibold text-oracle-dark-gray">
-                                {highlightText(group.group_name, uploadDraftFilter)}
-                              </span>
-                              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-oracle-medium-gray">
-                                {formatUploadGroupKind(group.group_kind)}
-                              </span>
-                              {groupMatches && hasUploadDraftFilter && (
-                                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-medium text-yellow-800">
-                                  Match
-                                </span>
-                              )}
-                            </div>
-                          </button>
-
-                          <span className="shrink-0 text-xs font-medium text-oracle-medium-gray">
-                            {enabledGroupItems}/{totalGroupItems} selected
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => removeUploadDraftGroup(group.group_source_path)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 transition-colors hover:bg-red-50"
-                            aria-label="Remove source"
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-
-                        {!isGroupCollapsed && (
-                          <>
-                          {items.map((item) => (
-                            <div
-                              key={getPreparedItemKey(item)}
-                              className={`border-t ${
-                                item.enabled
-                                  ? 'border-gray-100 bg-white'
-                                  : 'border-gray-100 bg-gray-50/70'
-                              }`}
-                            >
-                              <div className="px-4 py-1 pl-16">
-                                <div className={uploadDraftRowGridClassName}>
-                                  <div className="flex min-w-0 items-start gap-3 xl:items-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={item.enabled}
-                                      onChange={(e) =>
-                                        updateUploadDraftItem(group.group_source_path, item.source_path, {
-                                          enabled: e.target.checked,
-                                        })
-                                      }
-                                      className="h-4 w-4 rounded border-gray-300 text-oracle-red accent-oracle-red focus:ring-oracle-red"
-                                    />
-
-                                    <span className="text-oracle-medium-gray">
-                                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M7 3h7l5 5v13a1 1 0 01-1 1H7a2 2 0 01-2-2V5a2 2 0 012-2z"
-                                        />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 3v5h5" />
-                                      </svg>
-                                    </span>
-
-                                    <div className="min-w-0 flex-1">
-                                      <div className="min-w-0">
-                                        <p
-                                          className="truncate text-sm font-medium text-oracle-dark-gray"
-                                          title={item.display_name || item.file_name}
-                                        >
-                                          {highlightText(item.display_name || item.file_name, uploadDraftFilter)}
-                                        </p>
-                                      </div>
-                                      {item.display_name !== item.file_name && (
-                                        <p
-                                          className="mt-1 truncate text-xs text-oracle-medium-gray"
-                                          title={item.file_name}
-                                        >
-                                          {highlightText(item.file_name, uploadDraftFilter)}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className={uploadDraftControlGridClassName}>
-                                    <div className={compactUploadDraftFieldLabelClassName}>
-                                      <span className="text-[11px] font-semibold uppercase tracking-wide text-oracle-medium-gray xl:hidden">
-                                        Metadata
-                                      </span>
-                                      {(() => {
-                                        const metadataMatchState = getUploadDraftMetadataMatchState(
-                                          item.archive_slug
-                                        );
-                                        const metadataMatchPresentation =
-                                          getUploadDraftMetadataMatchPresentation(metadataMatchState);
-                                        const metadataMatchTitle =
-                                          metadataMatchState === 'matched'
-                                            ? `Matched metadata row for ${item.archive_slug}`
-                                            : metadataMatchState === 'unmatched'
-                                            ? `No metadata row matched ${item.archive_slug}`
-                                            : metadataMatchState === 'loading'
-                                            ? 'Loading metadata preview rows'
-                                            : 'Add or select metadata to preview matches';
-
-                                        return (
-                                          <span
-                                            className={`inline-flex h-7 w-full items-center justify-center rounded-md border px-2 text-[11px] font-medium ${metadataMatchPresentation.className}`}
-                                            title={metadataMatchTitle}
-                                          >
-                                            {metadataMatchPresentation.label}
-                                          </span>
-                                        );
-                                      })()}
-                                    </div>
-                                    <label className={compactUploadDraftFieldLabelClassName}>
-                                      <span className="text-[11px] font-semibold uppercase tracking-wide text-oracle-medium-gray xl:hidden">
-                                        Language
-                                      </span>
-                                      <select
-                                        value={item.document_language || DEFAULT_UPLOAD_LANGUAGE}
-                                        onChange={(e) =>
-                                          updateUploadDraftItem(group.group_source_path, item.source_path, {
-                                            document_language: e.target.value,
-                                          })
-                                        }
-                                        className={`${compactUploadDraftSelectClassName} w-full`}
-                                      >
-                                        {LANGUAGE_OPTIONS.map((option) => (
-                                          <option key={option.value} value={option.value}>
-                                            {option.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                    <label className={compactUploadDraftFieldLabelClassName}>
-                                      <span className="text-[11px] font-semibold uppercase tracking-wide text-oracle-medium-gray xl:hidden">
-                                        Access
-                                      </span>
-                                      <select
-                                        value={item.access || DEFAULT_UPLOAD_ACCESS}
-                                        onChange={(e) =>
-                                          updateUploadDraftItem(group.group_source_path, item.source_path, {
-                                            access: e.target.value,
-                                          })
-                                        }
-                                        className={`${compactUploadDraftSelectClassName} w-full`}
-                                      >
-                                        {ACCESS_OPTIONS.map((option) => (
-                                          <option key={option.value} value={option.value}>
-                                            {option.label}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                  </div>
-
-                                </div>
-                              </div>
-                            </div>
-                                  ))}
-                            </>
-                          )}
-                        </div>
-                              );
-                            })
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex shrink-0 gap-3 justify-end pt-2">
-                  <button type="button" onClick={closeUploadModal} className="btn-secondary">
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={submitUploadDraft}
-                    disabled={!canProcessUploadDraft}
-                    className="btn-primary"
-                  >
-                    {processUploadMutation.isPending
-                      ? 'Processing...'
-                      : prepareUploadMutation.isPending
-                      ? 'Preparing...'
-                      : 'Process files'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </ModalPortal>
+          <RAGUploadModal
+            preparedUploadsSummary={preparedUploadsSummary}
+            selectedMetadataUploadId={selectedMetadataUploadId}
+            selectedMetadataUpload={selectedMetadataUpload}
+            selectedMetadataLabel={selectedMetadataLabel}
+            metadataUploads={metadataUploadsQuery.data || []}
+            metadataUploadsLoading={metadataUploadsQuery.isLoading}
+            hasPreparedUploads={hasPreparedUploads}
+            preparePending={prepareUploadMutation.isPending}
+            processPending={processUploadMutation.isPending}
+            uploadDraftFilter={uploadDraftFilter}
+            isDragging={isDragging}
+            totalPreparedItems={totalPreparedItems}
+            metadataMatchedPreparedItems={metadataMatchedPreparedItems}
+            hasMetadataSelection={hasMetadataSelection}
+            canProcessUploadDraft={canProcessUploadDraft}
+            onClose={closeUploadModal}
+            onFileSelect={handleFileSelect}
+            onMetadataSelect={handleExistingMetadataSelect}
+            onUploadDraftFilterChange={setUploadDraftFilter}
+            onClearUploadDraftFilter={() => setUploadDraftFilter('')}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onSubmit={submitUploadDraft}
+          >
+            <RAGUploadDraftList
+              filteredUploadDraftGroups={filteredUploadDraftGroups}
+              uploadDraftFilter={uploadDraftFilter}
+              hasUploadDraftFilter={hasUploadDraftFilter}
+              collapsedUploadGroups={collapsedUploadGroups}
+              onToggleGroup={toggleUploadDraftGroup}
+              onRemoveGroup={removeUploadDraftGroup}
+              onSetGroupEnabled={updateUploadDraftGroupEnabled}
+              onUpdateItem={updateUploadDraftItem}
+              getMetadataMatchState={getUploadDraftMetadataMatchState}
+            />
+          </RAGUploadModal>
         )}
 
         {replaceConfirm && (
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg w-full max-w-md max-h-[min(80vh,720px)] overflow-hidden">
-              <div className="p-6 flex min-h-0 flex-1 flex-col">
-                <h2 className="text-lg font-bold text-oracle-dark-gray mb-2">Document already exists</h2>
-                <p className="text-sm text-oracle-medium-gray mb-4">
-                  A document with this name already exists ({replaceConfirm.duplicateDocs.length}):
-                </p>
-                <ul className="list-disc list-inside text-sm text-oracle-dark-gray mb-4 max-h-72 overflow-y-auto pr-2">
-                  {replaceConfirm.duplicateDocs.map((d: any) => (
-                    <li key={d.id}>{d.original_name || d.filename}</li>
-                  ))}
-                </ul>
-                <p className="text-sm text-oracle-medium-gray">
-                  Do you want to reprocess it? The existing document will be deleted and processed again.
-                </p>
-                <div className="mt-4 flex gap-2 justify-end border-t border-gray-100 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setReplaceConfirm(null)}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const { duplicateDocs, groups } = replaceConfirm;
-                      const replaceFileIds = duplicateDocs
-                        .map((doc: any) => Number(doc.id))
-                        .filter((value) => Number.isFinite(value) && value > 0);
-                      void queueUploadDraft(groups, replaceFileIds);
-                    }}
-                    disabled={processUploadMutation.isPending}
-                    className="btn-primary"
-                  >
-                    {processUploadMutation.isPending
-                      ? 'Processing...'
-                      : 'Yes, reprocess'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <RAGReplaceConfirmModal
+            duplicateDocs={replaceConfirm.duplicateDocs}
+            processPending={processUploadMutation.isPending}
+            onCancel={() => setReplaceConfirm(null)}
+            onConfirm={() => {
+              const { duplicateDocs, groups } = replaceConfirm;
+              const replaceFileIds = duplicateDocs
+                .map((doc: any) => Number(doc.id))
+                .filter((value) => Number.isFinite(value) && value > 0);
+              void queueUploadDraft(groups, replaceFileIds);
+            }}
+          />
         )}
 
         {editingDocs && editingDocs.length > 0 && (
