@@ -1,7 +1,39 @@
 import { useState, useEffect } from 'react';
 import { Layout } from '../common/Layout';
 import { LoadingState } from '../common/LoadingState';
-import api from '../../services/apiClient';
+import { handleUnauthorizedApiResponse } from '../../lib/apiAuthFailure';
+
+async function requestProfileJson<T>(
+  path: string,
+  options: { method?: string; body?: unknown } = {}
+): Promise<T> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`/api${path}`, {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+
+  handleUnauthorizedApiResponse(response, path);
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const payload = await response.json();
+      detail = String(payload?.detail || detail);
+    } catch {
+      // Keep the HTTP status fallback.
+    }
+    const error = new Error(detail) as Error & { response?: { data: { detail: string } } };
+    error.response = { data: { detail } };
+    throw error;
+  }
+
+  const text = await response.text();
+  return (text ? JSON.parse(text) : null) as T;
+}
 
 export function Profile() {
   const [editing, setEditing] = useState(false);
@@ -22,8 +54,7 @@ export function Profile() {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const response = await api.get('/user/me');
-        const userData = response.data;
+        const userData = await requestProfileJson<any>('/user/me');
         setUser(userData);
         setFormData({
           name: userData.name || '',
@@ -48,9 +79,12 @@ export function Profile() {
     setErrorMessage('');
     
     try {
-      await api.put('/user/profile', {
-        name: formData.name,
-        last_name: formData.last_name
+      await requestProfileJson('/user/profile', {
+        method: 'PUT',
+        body: {
+          name: formData.name,
+          last_name: formData.last_name,
+        },
       });
       
       setUser({
@@ -81,9 +115,12 @@ export function Profile() {
 
     setSaving(true);
     try {
-      await api.post('/user/change-password', {
-        current_password: formData.current_password,
-        new_password: formData.new_password
+      await requestProfileJson('/user/change-password', {
+        method: 'POST',
+        body: {
+          current_password: formData.current_password,
+          new_password: formData.new_password,
+        },
       });
       
       setSuccessMessage('Password changed successfully!');

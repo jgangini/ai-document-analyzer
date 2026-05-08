@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+import { handleUnauthorizedApiResponse } from '../lib/apiAuthFailure';
+
 export const baseURL = '/api';
 
 const api = axios.create({
@@ -25,12 +27,7 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       const requestUrl = error?.config?.url ?? '';
-      if (!requestUrl.includes('/auth/login')) {
-        localStorage.removeItem('token');
-        sessionStorage.removeItem('builder-last-flow-id');
-        sessionStorage.removeItem('flow-builder-state');
-        window.location.href = '/login';
-      }
+      handleUnauthorizedApiResponse(error.response, requestUrl);
     }
     return Promise.reject(error);
   }

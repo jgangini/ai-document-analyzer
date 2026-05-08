@@ -4,23 +4,39 @@ import { useQuery } from '@tanstack/react-query';
 
 import { LoadingState } from '../components/common/LoadingState';
 import { useAuth } from '../context/AuthContext';
+import { handleUnauthorizedApiResponse } from '../lib/apiAuthFailure';
 import { queryClient, queryKeys } from '../lib/queryClient';
-import api from '../services/apiClient';
 import { AuthenticatedRoutes } from './AuthenticatedRoutes';
 import { SetupRoutes } from './SetupRoutes';
+
+async function checkSetupCompleted(): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/setup/check', {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal: controller.signal,
+    });
+    handleUnauthorizedApiResponse(response, '/setup/check');
+    if (!response.ok) return false;
+    const payload = await response.json();
+    return payload?.completed === true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 
 export function AppRouter() {
   const { isAuthenticated, loading, logout } = useAuth();
   const { data: setupCompleted, isPending: setupPending } = useQuery({
     queryKey: queryKeys.setup.check,
-    queryFn: async () => {
-      try {
-        const res = await api.get('/setup/check', { timeout: 10000 });
-        return res.data.completed === true;
-      } catch {
-        return false;
-      }
-    },
+    queryFn: checkSetupCompleted,
     staleTime: Infinity,
     retry: false,
   });

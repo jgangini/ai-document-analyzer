@@ -5,8 +5,44 @@ import { Layout } from '../common/Layout';
 import { LoadingState } from '../common/LoadingState';
 import { ConfirmDeleteModal } from '../common/ConfirmDeleteModal';
 import { useAuth } from '../../context/AuthContext';
-import api from '../../services/apiClient';
+import { handleUnauthorizedApiResponse } from '../../lib/apiAuthFailure';
 import { queryKeys } from '../../lib/queryClient';
+
+async function requestUserJson<T>(
+  path: string,
+  options: { method?: string; body?: unknown } = {}
+): Promise<T> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`/api${path}`, {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+
+  handleUnauthorizedApiResponse(response, path);
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const payload = await response.json();
+      detail = String(payload?.detail || detail);
+    } catch {
+      // Keep the HTTP status fallback.
+    }
+    const error = new Error(detail) as Error & { response?: { data: { detail: string } } };
+    error.response = { data: { detail } };
+    throw error;
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  const text = await response.text();
+  return (text ? JSON.parse(text) : null) as T;
+}
 
 export function Users() {
   const navigate = useNavigate();
@@ -37,13 +73,19 @@ export function Users() {
 
   const { data: usersList = [], isLoading: loading } = useQuery({
     queryKey: queryKeys.users.list,
-    queryFn: () => api.get<{ users?: any[] }>('/user/users').then((r) => r.data.users ?? []),
+    queryFn: async () => {
+      const data = await requestUserJson<{ users?: any[] }>('/user/users');
+      return data.users ?? [];
+    },
     enabled: !!(authUser && authUser.group_id === 0),
   });
 
   const { data: userGroups = [] } = useQuery({
     queryKey: queryKeys.users.groups,
-    queryFn: () => api.get<{ groups?: { user_group_id: number; user_group_name: string }[] }>('/user/groups').then((r) => r.data.groups ?? []),
+    queryFn: async () => {
+      const data = await requestUserJson<{ groups?: { user_group_id: number; user_group_name: string }[] }>('/user/groups');
+      return data.groups ?? [];
+    },
     enabled: !!(authUser && authUser.group_id === 0),
   });
 
@@ -109,7 +151,7 @@ export function Users() {
     setErrorMessage('');
     
     try {
-      await api.post('/user/create', newUser);
+      await requestUserJson('/user/create', { method: 'POST', body: newUser });
       setSuccessMessage('User created successfully!');
       setShowCreateModal(false);
       setNewUser({
@@ -132,7 +174,7 @@ export function Users() {
     setSuccessMessage('');
     setErrorMessage('');
     try {
-      await api.delete(`/user/${deleteTarget.user_id}`);
+      await requestUserJson(`/user/${deleteTarget.user_id}`, { method: 'DELETE' });
       setSuccessMessage('User deleted successfully!');
       setDeleteTarget(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.users.list });

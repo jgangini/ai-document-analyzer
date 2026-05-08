@@ -3,9 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useHeaderSession } from '../../context/HeaderSessionContext';
 import { useRAGChat } from '../../context/RAGChatContext';
+import { handleUnauthorizedApiResponse } from '../../lib/apiAuthFailure';
 import { sortChatConversationsByUpdatedAt } from '../../lib/chatSorting';
 import { queryKeys } from '../../lib/queryClient';
-import { chatApi } from '../../services/chatApi';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -34,6 +34,22 @@ type SidebarChatSummary = {
   created_at: string;
   updated_at: string;
 };
+
+async function listSidebarConversations(): Promise<SidebarChatSummary[]> {
+  const token = localStorage.getItem('token');
+  const response = await fetch('/api/chats', {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  handleUnauthorizedApiResponse(response, '/chats');
+  if (!response.ok) {
+    throw new Error(`Failed to load chats (${response.status})`);
+  }
+  const payload = await response.json();
+  return (payload?.items || []) as SidebarChatSummary[];
+}
 
 function parseChatTimestamp(value: string): Date | null {
   const rawValue = String(value || '').trim();
@@ -213,10 +229,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const recentChatsQuery = useQuery({
     queryKey: queryKeys.chats.sidebar(user?.user_id ?? 'anonymous'),
     queryFn: async () => {
-      const response = await chatApi.listConversations();
-      return sortChatConversationsByUpdatedAt(
-        (response.data?.items || []) as SidebarChatSummary[]
-      );
+      return sortChatConversationsByUpdatedAt(await listSidebarConversations());
     },
     enabled: isAuthenticated && !collapsed,
   });

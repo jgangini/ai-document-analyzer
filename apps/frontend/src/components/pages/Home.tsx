@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Layout } from '../common/Layout';
 import { useAppBranding } from '../../hooks/useAppBranding';
-import api from '../../services/apiClient';
+import { handleUnauthorizedApiResponse } from '../../lib/apiAuthFailure';
 
 type FileSummary = {
   file_id: number;
@@ -11,6 +11,22 @@ type FileSummary = {
 };
 
 type StatKind = 'documents' | 'processed' | 'pages';
+
+async function listHomeFiles(): Promise<FileSummary[]> {
+  const token = localStorage.getItem('token');
+  const response = await fetch('/api/files', {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  handleUnauthorizedApiResponse(response, '/files');
+  if (!response.ok) {
+    throw new Error(`Failed to load files (${response.status})`);
+  }
+  const payload = await response.json();
+  return payload?.items ?? [];
+}
 
 function StatIcon({ kind }: { kind: StatKind }) {
   if (kind === 'processed') {
@@ -42,7 +58,7 @@ export function Home() {
 
   const filesQuery = useQuery({
     queryKey: ['files', 'list'],
-    queryFn: () => api.get<{ items: FileSummary[] }>('/files').then((r) => r.data.items ?? []),
+    queryFn: listHomeFiles,
   });
 
   const files = filesQuery.data ?? [];
