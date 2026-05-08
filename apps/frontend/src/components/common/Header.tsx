@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { AppBrand } from './AppBrand';
+import { useResolvedAppName } from '../../context/AppBrandingContext';
+import { useHeaderSession } from '../../context/HeaderSessionContext';
 
 export function Header() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const appName = useResolvedAppName();
+  const { user, logout } = useHeaderSession();
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -21,7 +22,13 @@ export function Header() {
 
   return (
     <header className="oracle-header fixed top-0 left-0 right-0 z-50">
-      <AppBrand className="flex-1" dividerClassName="h-8 app-brand-divider--light" />
+      <div className="flex flex-1 items-center gap-4">
+        <svg className="h-5 shrink-0" viewBox="0 0 32 20.4" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path fill="#C74634" d="M9.9,20.1c-5.5,0-9.9-4.4-9.9-9.9c0-5.5,4.4-9.9,9.9-9.9h11.6c5.5,0,9.9,4.4,9.9,9.9c0,5.5-4.4,9.9-9.9,9.9H9.9 M21.2,16.6c3.6,0,6.4-2.9,6.4-6.4c0-3.6-2.9-6.4-6.4-6.4h-11c-3.6,0-6.4,2.9-6.4,6.4s2.9,6.4,6.4,6.4H21.2"></path>
+        </svg>
+        <div className="w-px h-8 app-brand-divider--light" />
+        <span className="text-xl font-semibold">{appName}</span>
+      </div>
       
       {user && (
         <div className="relative" ref={dropdownRef}>

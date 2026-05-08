@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { useAuth } from '../../context/AuthContext';
+import { useHeaderSession } from '../../context/HeaderSessionContext';
 import { useRAGChat } from '../../context/RAGChatContext';
 import { sortChatConversationsByUpdatedAt } from '../../lib/chatSorting';
 import { queryKeys } from '../../lib/queryClient';
@@ -83,7 +83,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const FOOTER_HEIGHT_PX = 34;
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useHeaderSession();
+  const isAuthenticated = Boolean(user);
   const {
     openNewConversation,
     openSearch,

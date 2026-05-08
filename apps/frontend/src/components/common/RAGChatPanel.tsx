@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 import { useAuth } from '../../context/AuthContext';
 import { useRAGChat } from '../../context/RAGChatContext';
@@ -23,13 +21,9 @@ import {
   buildComposerVisualInlineParts,
   buildEffectiveComposerQuestionText,
   buildSelectorSuggestionGroups,
-  buildUserMessagePresentation,
-  getInlineChipClassName,
-  getUserMessageChipClassName,
   insertComposerTokenLabel,
   reconcileComposerTokens,
   removeComposerToken,
-  SelectorChipIcon,
   serializeComposerInput,
   type ComposerSelectorState,
   type SelectorSuggestion,
@@ -40,22 +34,19 @@ import {
   NODE_HEIGHT,
 } from './RAGChatPanel.graph';
 import {
-  CHAT_MARKDOWN_COMPONENTS,
   cleanPageMarkdownForPreview,
   extractDocumentPageMarkdown,
-  messageContainsMarkdownTable,
   stripInlineSourcesSection,
 } from './RAGChatPanel.markdown';
 import {
   extractNodeResponseText,
-  formatInferredScopeLabel,
   formatJsonForDisplay,
   buildLocalComposerCommandMessages,
   mapCitedSourcesFromMetadata,
   mapReasoningFromMetadata,
   mergeLoadedConversationMessages,
 } from './RAGChatPanel.messages';
-import { formatTime, getInitials } from './RAGChatPanel.types';
+import { getInitials } from './RAGChatPanel.types';
 import type {
   FeedbackKind,
   Message,
@@ -64,9 +55,9 @@ import type {
   Source,
 } from './RAGChatPanel.types';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
-import { LoadingState } from './LoadingState';
 import { RAGChatComposer } from './RAGChatComposer';
 import { RAGChatGraphPanel } from './RAGChatGraphPanel';
+import { RAGChatMessageList } from './RAGChatMessageList';
 import { RAGChatSourcePreviewModal } from './RAGChatSourcePreviewModal';
 
 export function RAGChatPanel() {
@@ -1247,18 +1238,6 @@ export function RAGChatPanel() {
     copiedTimeoutRef.current = window.setTimeout(() => setCopiedMessageId(null), 1500);
   };
 
-  const resolveSourcePreviewTarget = useCallback(
-    (source: Source): Source | null => {
-      const pageNumber = Number(source.page_number ?? 0);
-      if (!Number.isFinite(pageNumber) || pageNumber <= 0) return null;
-      if (source.file_id) {
-        return { ...source, page_number: pageNumber };
-      }
-      return null;
-    },
-    []
-  );
-
   const recordFeedbackEvent = (payload: Record<string, any>) => {
     void improvementApi
       .recordFeedback({
@@ -1491,294 +1470,26 @@ export function RAGChatPanel() {
             </div>
           </div>
 
-          <div
-            ref={listRef}
-            className="chat-message-list flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-5 chat-scrollbar"
-          >
-            {loadingConversation ? (
-              <div className="flex items-center justify-center h-full">
-                <LoadingState size="sm" label="Loading chat..." textClassName="text-oracle-medium-gray" />
-              </div>
-            ) : (
-              <>
-                {messages.map((m, messageIndex) => {
-                  const assistantHasMarkdownTable =
-                    m.role === 'assistant' && messageContainsMarkdownTable(m.text);
-                  const messageWidthClass =
-                    m.role === 'assistant' && assistantHasMarkdownTable
-                      ? 'flex-1 max-w-full'
-                      : 'max-w-[85%]';
-                  const userMessagePresentation =
-                    m.role === 'user'
-                      ? buildUserMessagePresentation(m.text, scopeOptions, m.telemetry)
-                      : null;
-                  const userMessageHasInlineChips = Boolean(
-                    userMessagePresentation?.inlineParts.some((part) => part.type === 'chip')
-                  );
-                  const renderedMessageText =
-                    m.role === 'user' && userMessagePresentation
-                      ? userMessagePresentation.bodyText
-                      : m.text;
-
-                  return (
-                    <div
-                      key={m.messageId}
-                      className={`flex min-w-0 gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-                    >
-                    {m.role === 'assistant' ? (
-                      <div className="w-8 h-8 rounded-xl bg-oracle-red flex items-center justify-center flex-shrink-0 overflow-hidden mt-0.5">
-                        {showAssistantAvatarImage ? (
-                          <img
-                            src={assistantAvatarUrl}
-                            alt={assistantDisplayName}
-                            className="w-full h-full object-cover rounded-xl"
-                            onError={() => setAssistantAvatarImageFailed(true)}
-                          />
-                        ) : (
-                          <span className="text-white text-xs font-bold">{assistantAvatarLetter}</span>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-xl bg-oracle-dark-gray flex items-center justify-center flex-shrink-0 overflow-hidden mt-0.5">
-                        <span className="text-white text-xs font-bold">{userInitials}</span>
-                      </div>
-                    )}
-
-                    <div
-                      className={`flex min-w-0 flex-col gap-1 ${messageWidthClass} ${m.role === 'user' ? 'items-end' : 'items-start'}`}
-                    >
-                      <div className="flex items-center gap-2 px-1">
-                        <span className="text-[11px] font-semibold text-oracle-medium-gray">
-                          {m.role === 'assistant' ? assistantDisplayName : (user?.name?.split(' ')[0] || 'You')}
-                        </span>
-                        <span className="text-[10px] text-oracle-light-gray">{formatTime(m.timestamp)}</span>
-                      </div>
-
-                      <div
-                        className={`max-w-full rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
-                          m.role === 'user'
-                            ? 'bg-oracle-dark-gray text-white rounded-tr-sm'
-                            : m.error
-                            ? 'bg-red-50 text-red-700 border border-red-200 rounded-tl-sm'
-                            : `chat-assistant-message bg-white text-oracle-dark-gray border border-gray-200 rounded-tl-sm overflow-hidden ${
-                                assistantHasMarkdownTable ? 'w-full' : ''
-                              }`
-                        }`}
-                      >
-                        {m.role === 'user' && userMessagePresentation ? (
-                          <div className="min-w-0 max-w-full overflow-hidden">
-                            {userMessageHasInlineChips ? (
-                              <div className="whitespace-pre-wrap break-words text-right text-sm leading-relaxed text-white">
-                                {userMessagePresentation.inlineParts.map((part) =>
-                                  part.type === 'text' ? (
-                                    <span key={part.id} className="whitespace-pre-wrap break-words">
-                                      {part.value}
-                                    </span>
-                                  ) : (
-                                    <span
-                                      key={part.id}
-                                      className={`${getInlineChipClassName(getUserMessageChipClassName(part.chip.tone))} align-middle`}
-                                      title={part.chip.label}
-                                    >
-                                      <SelectorChipIcon tone={part.chip.tone} />
-                                      <span className="min-w-0 truncate">{part.chip.label}</span>
-                                    </span>
-                                  )
-                                )}
-                              </div>
-                            ) : (
-                              <div className="space-y-2 text-white">
-                                <div className="whitespace-pre-wrap break-words text-right text-sm leading-relaxed">
-                                  {renderedMessageText}
-                                </div>
-                                {userMessagePresentation.selectorChips.length > 0 ? (
-                                  <div className="flex flex-wrap justify-end gap-1.5">
-                                    {userMessagePresentation.selectorChips.map((chip) => (
-                                      <span
-                                        key={chip.id}
-                                        className={getInlineChipClassName(getUserMessageChipClassName(chip.tone))}
-                                        title={chip.label}
-                                      >
-                                        <SelectorChipIcon tone={chip.tone} />
-                                        <span className="min-w-0 truncate">{chip.label}</span>
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : null}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="min-w-0 max-w-full overflow-hidden">
-                            <div className="max-w-none min-w-0 space-y-2 break-words text-sm leading-relaxed">
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={CHAT_MARKDOWN_COMPONENTS}
-                              >
-                                {renderedMessageText}
-                              </ReactMarkdown>
-                            </div>
-                          </div>
-                        )}
-                        {m.role === 'assistant' && !m.error && formatInferredScopeLabel(m.telemetry) && (
-                          <div className="mt-2 inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-800">
-                            {formatInferredScopeLabel(m.telemetry)}
-                          </div>
-                        )}
-                        {m.role === 'assistant' &&
-                          (() => {
-                            const citedSources = m.citedSources && m.citedSources.length > 0 ? m.citedSources : [];
-                            if (citedSources.length === 0) return null;
-
-                            const renderSourceChip = (s: Source, index: number, keyPrefix: string) => {
-                              const previewTarget = resolveSourcePreviewTarget(s);
-                              const canOpenPreview = Boolean(previewTarget?.file_id && previewTarget?.page_number);
-                              const resolvedPageNumber = Number(previewTarget?.page_number ?? s.page_number ?? 0);
-                              const normalizedPageNumber =
-                                Number.isFinite(resolvedPageNumber) && resolvedPageNumber > 0
-                                  ? resolvedPageNumber
-                                  : undefined;
-                              const sourceLabel =
-                                String(s.name || '').trim() || `page ${normalizedPageNumber ?? '?'}`;
-                              return (
-                                <button
-                                  key={`${keyPrefix}-${s.doc_id}-${index}`}
-                                  type="button"
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] max-w-[200px] transition-colors ${
-                                    canOpenPreview
-                                      ? 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'
-                                      : 'bg-gray-50 border-gray-200 text-gray-500 cursor-default'
-                                  }`}
-                                  title={sourceLabel}
-                                  onClick={() => {
-                                    if (previewTarget) {
-                                      void handleOpenSourcePreview(previewTarget);
-                                    }
-                                  }}
-                                  disabled={!canOpenPreview}
-                                >
-                                  <svg className="w-2.5 h-2.5 flex-shrink-0 text-oracle-light-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                  </svg>
-                                  <span className="truncate">{sourceLabel}</span>
-                                </button>
-                              );
-                            };
-
-                            return (
-                              <div className="mt-2 pt-1.5 space-y-2">
-                                {citedSources.length > 0 && (
-                                  <div>
-                                    <p className="text-[10px] font-semibold text-oracle-light-gray uppercase tracking-wide mb-1.5">
-                                      Cited in answer
-                                    </p>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {citedSources.map((s, index) => renderSourceChip(s, index, 'cited'))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                      </div>
-                      {m.role === 'assistant' && !m.error && (
-                        <div className="-mt-1 px-1">
-                          <div className="inline-flex items-center gap-2">
-                            <button
-                              type="button"
-                              className={`inline-flex items-center justify-center transition-colors ${
-                                copiedMessageId === m.messageId
-                                  ? 'text-emerald-600'
-                                  : 'text-oracle-medium-gray hover:text-oracle-dark-gray'
-                              } hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]`}
-                              title="Copy answer"
-                              aria-label="Copy answer"
-                              onClick={() => void handleCopyAssistantAnswer(m, messageIndex)}
-                            >
-                              <svg className="w-[15px] h-[15px]" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M21,8H9A1,1,0,0,0,8,9V21a1,1,0,0,0,1,1H21a1,1,0,0,0,1-1V9A1,1,0,0,0,21,8ZM20,20H10V10H20ZM6,15a1,1,0,0,1-1,1H3a1,1,0,0,1-1-1V3A1,1,0,0,1,3,2H15a1,1,0,0,1,1,1V5a1,1,0,0,1-2,0V4H4V14H5A1,1,0,0,1,6,15Z" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              className={`inline-flex items-center justify-center transition-colors ${
-                                messageFeedback[m.messageId] === 'up'
-                                  ? 'text-emerald-600'
-                                  : 'text-oracle-medium-gray hover:text-oracle-dark-gray'
-                              } hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]`}
-                              title="Helpful response"
-                              aria-label="Mark response as helpful"
-                              onClick={() => handleMessageFeedback(m, messageIndex, 'up')}
-                            >
-                              <svg className="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={1.8}
-                                  d="M14 9V5a3 3 0 00-3-3l-1 5-3 4v10h10.5a2.5 2.5 0 002.45-2l1-7A2.5 2.5 0 0018.5 9H14z"
-                                />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 11H4a1 1 0 00-1 1v8a1 1 0 001 1h3" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              className={`inline-flex items-center justify-center transition-colors ${
-                                messageFeedback[m.messageId] === 'down'
-                                  ? 'text-rose-600'
-                                  : 'text-oracle-medium-gray hover:text-oracle-dark-gray'
-                              } hover:drop-shadow-[0_2px_4px_rgba(0,0,0,0.25)]`}
-                              title="Not helpful response"
-                              aria-label="Mark response as not helpful"
-                              onClick={() => handleMessageFeedback(m, messageIndex, 'down')}
-                            >
-                              <svg className="w-[15px] h-[15px] rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={1.8}
-                                  d="M14 9V5a3 3 0 00-3-3l-1 5-3 4v10h10.5a2.5 2.5 0 002.45-2l1-7A2.5 2.5 0 0018.5 9H14z"
-                                />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 11H4a1 1 0 00-1 1v8a1 1 0 001 1h3" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    </div>
-                  );
-                })}
-
-                {loading && (
-                  <div className="flex gap-2.5 flex-row">
-                    <div className="w-8 h-8 rounded-xl bg-oracle-red flex items-center justify-center flex-shrink-0 overflow-hidden mt-0.5">
-                      {showAssistantAvatarImage ? (
-                        <img
-                          src={assistantAvatarUrl}
-                          alt={assistantDisplayName}
-                          className="w-full h-full object-cover rounded-xl"
-                          onError={() => setAssistantAvatarImageFailed(true)}
-                        />
-                      ) : (
-                        <span className="text-white text-xs font-bold">{assistantAvatarLetter}</span>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2 px-1">
-                        <span className="text-[11px] font-semibold text-oracle-medium-gray">{assistantDisplayName}</span>
-                        <span className="text-[10px] text-oracle-light-gray">{`${loadingElapsedSeconds} seg`}</span>
-                      </div>
-                      <div className="rounded-2xl rounded-tl-sm px-4 py-3 bg-white border border-gray-200 shadow-sm flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-oracle-light-gray animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-oracle-light-gray animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-1.5 h-1.5 rounded-full bg-oracle-light-gray animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <RAGChatMessageList
+            listRef={listRef}
+            loadingConversation={loadingConversation}
+            messages={messages}
+            loading={loading}
+            loadingElapsedSeconds={loadingElapsedSeconds}
+            assistantDisplayName={assistantDisplayName}
+            assistantAvatarUrl={assistantAvatarUrl}
+            assistantAvatarLetter={assistantAvatarLetter}
+            showAssistantAvatarImage={showAssistantAvatarImage}
+            userInitials={userInitials}
+            userFirstName={user?.name?.split(' ')[0] || 'You'}
+            scopeOptions={scopeOptions}
+            copiedMessageId={copiedMessageId}
+            messageFeedback={messageFeedback}
+            onAssistantAvatarImageError={() => setAssistantAvatarImageFailed(true)}
+            onOpenSourcePreview={(source) => void handleOpenSourcePreview(source)}
+            onCopyAssistantAnswer={handleCopyAssistantAnswer}
+            onMessageFeedback={handleMessageFeedback}
+          />
           <div className="chat-composer-footer p-3 border-t border-oracle-border flex-shrink-0 bg-white">
             {renderComposer(composerPlaceholder)}
           </div>
