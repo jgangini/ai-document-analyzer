@@ -2,96 +2,30 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Layout } from '../common/Layout';
 import { LoadingState } from '../common/LoadingState';
-import { ModalPortal } from '../common/ModalPortal';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import {
-  type ImprovementCheckpointThread,
   type ImprovementEvalCase,
   type ImprovementEvalRun,
   type ImprovementTraceRun,
 } from '../../services/apiTypes';
 import { improvementApi } from '../../services/improvementApi';
-
-type ImprovementTab = 'traces' | 'evals' | 'feedback' | 'checkpoints';
-
-const CHECKPOINTS_PAGE_SIZE = 10;
-const EVAL_CASES_PAGE_SIZE = 10;
-const DEFAULT_EVAL_CATEGORY = 'manual';
-const EVAL_CATEGORY_OPTIONS = [
-  { value: 'manual', label: 'Manual' },
-  { value: 'regression', label: 'Regression' },
-  { value: 'smoke', label: 'Smoke' },
-  { value: 'negative', label: 'Negative' },
-  { value: 'document_quality', label: 'Document quality' },
-];
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value || '-';
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  const hh = String(date.getHours()).padStart(2, '0');
-  const min = String(date.getMinutes()).padStart(2, '0');
-  const sec = String(date.getSeconds()).padStart(2, '0');
-  return `${dd}-${mm}-${yyyy} ${hh}:${min}:${sec}`;
-}
-
-function formatPercent(value: number): string {
-  if (!Number.isFinite(value)) return '0%';
-  return `${Math.round(value * 100)}%`;
-}
-
-function parseTerms(value: string): string[] {
-  return String(value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function compactJson(value: unknown): string {
-  try {
-    return JSON.stringify(value ?? {}, null, 2);
-  } catch {
-    return String(value ?? '');
-  }
-}
-
-function formatEvalCategory(value: string): string {
-  const option = EVAL_CATEGORY_OPTIONS.find((item) => item.value === value);
-  if (option) return option.label;
-  return String(value || 'Manual')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function StatusPill({ value }: { value: string }) {
-  const normalized = String(value || '').toLowerCase();
-  const tone =
-    normalized === 'completed' || normalized === 'passed'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-      : normalized === 'failed'
-        ? 'border-red-200 bg-red-50 text-red-700'
-        : normalized === 'running'
-          ? 'border-blue-200 bg-blue-50 text-blue-700'
-          : 'border-amber-200 bg-amber-50 text-amber-700';
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${tone}`}>
-      {value || 'pending'}
-    </span>
-  );
-}
-
-function MetricTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return (
-    <div className="rounded-lg border border-oracle-border bg-white px-4 py-3 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-oracle-light-gray">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-oracle-dark-gray">{value}</p>
-      {detail ? <p className="mt-1 text-xs text-oracle-medium-gray">{detail}</p> : null}
-    </div>
-  );
-}
+import { CreateEvalCaseModal } from './improvement/CreateEvalCaseModal';
+import { ImprovementCheckpointsTab } from './improvement/ImprovementCheckpointsTab';
+import { ImprovementFeedbackTab } from './improvement/ImprovementFeedbackTab';
+import { MetricTile, StatusPill } from './improvement/ImprovementBadges';
+import {
+  CHECKPOINTS_PAGE_SIZE,
+  DEFAULT_EVAL_CATEGORY,
+  EVAL_CASES_PAGE_SIZE,
+  IMPROVEMENT_TABS,
+  compactJson,
+  formatDateTime,
+  formatEvalCategory,
+  formatPercent,
+  parseTerms,
+  type ImprovementTab,
+} from './improvement/Improvement.model';
 
 export function ContinuousImprovement() {
   const { user } = useAuth();
@@ -274,12 +208,6 @@ export function ContinuousImprovement() {
     setActiveTab('traces');
   };
 
-  const tabs: Array<{ id: ImprovementTab; label: string }> = [
-    { id: 'traces', label: 'Traces' },
-    { id: 'evals', label: 'Evals' },
-    { id: 'feedback', label: 'Feedback' },
-    { id: 'checkpoints', label: 'Checkpoints' },
-  ];
   const canSaveCase = Boolean(caseName.trim() && caseQuestion.trim());
 
   if (overviewQuery.isLoading) {
@@ -330,7 +258,7 @@ export function ContinuousImprovement() {
 
         <div className="app-light-surface flex min-h-0 flex-1 flex-col rounded-lg border border-oracle-border bg-white shadow-sm">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-oracle-border px-4 pt-3">
-            {tabs.map((tab) => (
+            {IMPROVEMENT_TABS.map((tab) => (
               <button
                 key={tab.id}
                 type="button"
@@ -606,253 +534,40 @@ export function ContinuousImprovement() {
           ) : null}
 
           {activeTab === 'feedback' ? (
-            <div className="app-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-              <table className="min-w-full table-fixed text-left text-sm">
-                <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-oracle-light-gray">
-                  <tr>
-                    <th className="w-44 px-4 py-3">Time</th>
-                    <th className="w-32 px-4 py-3">Signal</th>
-                    <th className="px-4 py-3">Prompt</th>
-                    <th className="px-4 py-3">Answer</th>
-                    <th className="w-32 px-4 py-3">Trace</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {feedback.map((event) => (
-                    <tr key={event.feedback_event_id} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-oracle-medium-gray">{formatDateTime(event.created_at)}</td>
-                      <td className="px-4 py-3">
-                        <StatusPill value={`${event.event_type}:${event.value}`} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="line-clamp-3 text-sm text-oracle-dark-gray">{event.user_prompt || '-'}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="line-clamp-3 text-xs leading-5 text-oracle-medium-gray">
-                          {event.assistant_answer_preview || '-'}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-oracle-light-gray">{event.trace_id || '-'}</td>
-                    </tr>
-                  ))}
-                  {feedback.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-oracle-light-gray">
-                        No feedback events recorded yet.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
+            <ImprovementFeedbackTab feedback={feedback} />
           ) : null}
 
           {activeTab === 'checkpoints' ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="app-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-                <table className="min-w-full table-fixed text-left text-sm">
-                  <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-oracle-light-gray">
-                    <tr>
-                      <th className="w-[260px] px-4 py-3">Thread</th>
-                      <th className="px-4 py-3">Latest question</th>
-                      <th className="w-28 px-4 py-3">Snapshots</th>
-                      <th className="w-24 px-4 py-3">Writes</th>
-                      <th className="w-24 px-4 py-3">Traces</th>
-                      <th className="w-44 px-4 py-3">Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {paginatedCheckpoints.map((checkpoint: ImprovementCheckpointThread) => (
-                      <tr key={checkpoint.thread_id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">
-                          <p className="truncate text-xs font-semibold text-oracle-dark-gray">{checkpoint.thread_id}</p>
-                          {checkpoint.latest_trace_id ? (
-                            <button
-                              type="button"
-                              className="mt-1 text-xs font-semibold text-oracle-red hover:underline"
-                              onClick={() => openTraceFromEval(checkpoint.latest_trace_id)}
-                            >
-                              View latest trace
-                            </button>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="line-clamp-2 text-sm text-oracle-dark-gray">{checkpoint.latest_question || '-'}</p>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-oracle-dark-gray">{checkpoint.checkpoint_count}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-oracle-dark-gray">{checkpoint.write_count}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-oracle-dark-gray">{checkpoint.trace_count}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-xs text-oracle-medium-gray">{formatDateTime(checkpoint.updated_at)}</td>
-                      </tr>
-                    ))}
-                    {checkpoints.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-10 text-center text-sm text-oracle-light-gray">
-                          No checkpoints recorded yet.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </div>
-              {checkpoints.length > 0 ? (
-                <div className="flex shrink-0 items-center justify-between border-t border-gray-200 px-4 py-3">
-                  <p className="text-sm text-gray-600">
-                    Showing {checkpointsStartIndex + 1}-{checkpointsEndIndex} of {checkpoints.length}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCheckpointsPage((page) => Math.max(1, page - 1))}
-                      disabled={safeCheckpointsPage <= 1}
-                      className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-sm text-gray-600">
-                      Page {safeCheckpointsPage} of {checkpointsTotalPages}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setCheckpointsPage((page) => Math.min(checkpointsTotalPages, page + 1))}
-                      disabled={safeCheckpointsPage >= checkpointsTotalPages}
-                      className="rounded border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <ImprovementCheckpointsTab
+              checkpoints={checkpoints}
+              paginatedCheckpoints={paginatedCheckpoints}
+              startIndex={checkpointsStartIndex}
+              endIndex={checkpointsEndIndex}
+              currentPage={safeCheckpointsPage}
+              totalPages={checkpointsTotalPages}
+              onPageChange={setCheckpointsPage}
+              onOpenTrace={openTraceFromEval}
+            />
           ) : null}
         </div>
 
         {showCreateCaseModal ? (
-          <ModalPortal zIndex="z-[300]" className="items-start justify-center p-4">
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="create-eval-case-title"
-              className="flex max-h-[min(720px,calc(100vh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border-0 shadow-2xl"
-              style={{
-                background: 'rgba(255,255,255,0.72)',
-                backdropFilter: 'blur(20px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-              }}
-            >
-              <div className="bg-oracle-dark-gray px-5 py-4">
-                <div className="flex items-start gap-4">
-                  <div className="min-w-0">
-                    <h2 id="create-eval-case-title" className="text-lg font-semibold text-white">
-                      New evaluation case
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-200">Define a reusable question for the local evaluation loop.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateCaseModal(false)}
-                    className="ml-auto rounded-lg p-1.5 text-gray-200 transition-colors hover:bg-white/10"
-                    aria-label="Close evaluation case modal"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col gap-4 bg-white px-6 pb-6 pt-5">
-                <div className="app-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
-                  <div>
-                    <label htmlFor="eval-case-name" className="block text-xs font-semibold uppercase tracking-wide text-oracle-light-gray">
-                      Name
-                    </label>
-                    <input
-                      id="eval-case-name"
-                      autoFocus
-                      className="input-oracle mt-1"
-                      value={caseName}
-                      onChange={(event) => setCaseName(event.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="eval-case-category" className="block text-xs font-semibold uppercase tracking-wide text-oracle-light-gray">
-                      Category
-                    </label>
-                    <select
-                      id="eval-case-category"
-                      className="input-oracle mt-1"
-                      value={caseCategory}
-                      onChange={(event) => setCaseCategory(event.target.value)}
-                    >
-                      {EVAL_CATEGORY_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-oracle-light-gray">
-                      Groups the case for review; it does not change retrieval.
-                    </p>
-                  </div>
-                  <div>
-                    <label htmlFor="eval-case-question" className="block text-xs font-semibold uppercase tracking-wide text-oracle-light-gray">
-                      Question
-                    </label>
-                    <textarea
-                      id="eval-case-question"
-                      className="input-oracle mt-1 min-h-[120px] resize-y"
-                      value={caseQuestion}
-                      onChange={(event) => setCaseQuestion(event.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="eval-case-terms" className="block text-xs font-semibold uppercase tracking-wide text-oracle-light-gray">
-                      Expected terms
-                    </label>
-                    <input
-                      id="eval-case-terms"
-                      className="input-oracle mt-1"
-                      value={caseTerms}
-                      onChange={(event) => setCaseTerms(event.target.value)}
-                      placeholder="comma separated"
-                    />
-                    <p className="mt-1 text-xs text-oracle-light-gray">
-                      Optional words or phrases that should appear in a passing answer.
-                    </p>
-                  </div>
-                  <div>
-                    <label htmlFor="eval-case-minimum-citations" className="block text-xs font-semibold uppercase tracking-wide text-oracle-light-gray">
-                      Minimum citations
-                    </label>
-                    <input
-                      id="eval-case-minimum-citations"
-                      className="input-oracle mt-1"
-                      type="number"
-                      min={0}
-                      max={8}
-                      value={minimumCitations}
-                      onChange={(event) => setMinimumCitations(Number(event.target.value || 0))}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 justify-end gap-3 border-t border-gray-100 pt-4">
-                  <button type="button" onClick={() => setShowCreateCaseModal(false)} className="btn-secondary">
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={createCaseMutation.isPending || !canSaveCase}
-                    onClick={() => createCaseMutation.mutate()}
-                  >
-                    {createCaseMutation.isPending ? 'Saving...' : 'Save case'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </ModalPortal>
+          <CreateEvalCaseModal
+            caseName={caseName}
+            caseCategory={caseCategory}
+            caseQuestion={caseQuestion}
+            caseTerms={caseTerms}
+            minimumCitations={minimumCitations}
+            canSave={canSaveCase}
+            saving={createCaseMutation.isPending}
+            onCaseNameChange={setCaseName}
+            onCaseCategoryChange={setCaseCategory}
+            onCaseQuestionChange={setCaseQuestion}
+            onCaseTermsChange={setCaseTerms}
+            onMinimumCitationsChange={setMinimumCitations}
+            onClose={() => setShowCreateCaseModal(false)}
+            onSave={() => createCaseMutation.mutate()}
+          />
         ) : null}
       </div>
     </Layout>
