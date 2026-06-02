@@ -78,4 +78,7 @@ The script validates the FastAPI import and builds the frontend.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+This project is licensed under the [MIT License](LICENSE).
+
+AI Document Analyzer is an independent project and is not an official Oracle product. It is not affiliated with, endorsed by, or sponsored by Oracle Corporation. Oracle, OCI, and related marks are trademarks or registered trademarks of Oracle and/or its affiliates. Third-party trademarks, logos, service names, and assets remain the property of their respective owners.
+
