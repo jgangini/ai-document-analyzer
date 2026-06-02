@@ -1,35 +1,12 @@
 # AI Document Analyzer
 
-Aplicacion full-stack para cargar, procesar y consultar documentos con Oracle Autonomous Database, OCI Generative AI y un flujo RAG guiado desde una interfaz web.
+Full-stack application for ingesting documents, extracting page text and metadata, and answering governed questions through Oracle Autonomous Database, OCI Object Storage, and OCI Generative AI.
 
-El proyecto toma como referencia la misma forma de despliegue de [`jgangini/select-ai-analyzer`](https://github.com/jgangini/select-ai-analyzer): Dockerfile en la raiz, frontend en `apps/frontend`, backend en `apps/backend`, proxy `nginx` en `docker/` y API interna publicada bajo `/api`.
-
-## Caracteristicas
-
-- Wizard inicial para configurar Oracle ADB, wallet, credenciales OCI, Object Storage y Generative AI.
-- Carga y procesamiento de documentos con catalogo, paginas, markdown, imagenes y embeddings.
-- Consulta de documentos mediante chat RAG, citas, evidencia y razonamiento del agente.
-- Soporte de metadatos CSV por archivo o archivo comprimido para filtrar y comparar informacion estructurada.
-- Conversaciones persistentes, exportacion de chats y panel de mejora/evaluacion.
-- Imagen Docker unica con frontend estatico, backend FastAPI y proxy interno.
-
-## Video demo
-
-El video demo del flujo GitHub esta incluido en [`docs/videos/oci-ai-document-analyzer-git.mp4`](docs/videos/oci-ai-document-analyzer-git.mp4).
-
-## Stack
-
-- Frontend: React 18, Vite, TypeScript, Tailwind CSS, React Query.
-- Backend: Python 3.11, FastAPI, LangGraph, LangChain OCI, Oracle DB, OCI SDK.
-- Runtime: Docker, `nginx`, `uvicorn`, volumenes persistentes para datos, wallet, claves y logs.
+Demo video: https://github.com/user-attachments/assets/3fe36e15-da09-48a9-96b8-990529fea1d8
 
 ## Docker
 
-La imagen publica esta pensada para correr como un solo contenedor. El contenedor sirve:
-
-- frontend estatico por `nginx`
-- backend FastAPI por `uvicorn`
-- proxy interno en `/api`
+The container serves the static frontend through `nginx`, the FastAPI backend through `uvicorn`, and the internal API proxy under `/api`.
 
 ```bash
 docker run -d \
@@ -39,155 +16,66 @@ docker run -d \
   -v ai_document_analyzer_wallet:/app/apps/backend/wallet \
   -v ai_document_analyzer_keys:/app/apps/backend/keys \
   -v ai_document_analyzer_logs:/app/apps/backend/logs \
-  ghcr.io/jgangini/ai-document-analyzer:v0.1.0
+  ghcr.io/jgangini/ai-document-analyzer:v1.0.0
 ```
 
-Luego abre `http://localhost:8080` o la IP publica de tu VM en OCI.
+Then open `http://localhost:8080`.
 
-### Actualizar version
+## CloudTechNext
 
-```bash
-docker pull ghcr.io/jgangini/ai-document-analyzer:v0.1.0
-docker stop ai-document-analyzer
-docker rm ai-document-analyzer
-docker run -d \
-  --name ai-document-analyzer \
-  -p 8080:80 \
-  -v ai_document_analyzer_data:/app/apps/backend/data \
-  -v ai_document_analyzer_wallet:/app/apps/backend/wallet \
-  -v ai_document_analyzer_keys:/app/apps/backend/keys \
-  -v ai_document_analyzer_logs:/app/apps/backend/logs \
-  ghcr.io/jgangini/ai-document-analyzer:v0.1.0
-```
+The repository follows the same deployment shape as `select-ai-analyzer`: the `Dockerfile` lives at the repository root, the frontend lives in `apps/frontend`, the backend lives in `apps/backend`, nginx configuration lives in `docker/`, and `/api/health` exposes the health check.
 
-## CloudTechNext / OCI
+CloudTechNext can clone `https://github.com/jgangini/ai-document-analyzer.git`, build the image from the repository root, and mount persistent volumes for `data`, `wallet`, `keys`, and `logs`.
 
-CloudTechNext puede clonar `https://github.com/jgangini/ai-document-analyzer.git`, construir la imagen desde la raiz del repositorio y montar volumenes persistentes para:
+## Wizard
 
-- `/app/apps/backend/data`
-- `/app/apps/backend/wallet`
-- `/app/apps/backend/keys`
-- `/app/apps/backend/logs`
+1. Upload `wallet.zip`.
+2. Select the `tnsnames.ora` alias.
+3. Test the Oracle Autonomous Database connection.
+4. Run the SQL installation and create the administrator user.
+5. Upload the OCI `key.pem` file.
+6. Save the OCI API key, Object Storage, and Generative AI configuration.
+7. Test Object Storage and Generative AI and complete setup.
 
-La imagen no incluye credenciales, wallet, claves privadas ni datos reales. El wizard guarda la configuracion runtime en los volumenes montados para conservar el setup entre reinicios.
+## Runtime
 
-## Wizard inicial
+- `POST /api/files/upload`: uploads document files for preparation.
+- `POST /api/files/prepare`: creates the ingestion plan for uploaded documents.
+- `POST /api/files/process`: processes one document into pages, markdown, metadata, and embeddings.
+- `POST /api/files/process-batch`: processes a batch of prepared documents.
+- `POST /api/metadata/upload`: loads CSV metadata and links it to document files.
+- `POST /api/questions/ask`: answers document questions with scoped retrieval, citations, evidence, and metadata context.
+- `POST /api/questions/ask/stream`: streams the same document QA flow.
 
-En el primer arranque, completa el setup desde la UI:
+## Test Data
 
-1. Sube el `wallet.zip`.
-2. Selecciona el alias del `tnsnames.ora`.
-3. Prueba y guarda la conexion con Oracle ADB.
-4. Ejecuta la instalacion SQL.
-5. Sube el `key.pem` de OCI.
-6. Prueba OCI, Object Storage y Generative AI.
-7. Guarda la configuracion y completa el setup.
+The public image does not ship with real documents, wallets, keys, or metadata. After completing the wizard, upload PDF files or document archives from the UI. Optional CSV metadata can be loaded through the metadata panel or through `POST /api/metadata/upload`.
 
-Las operaciones de runtime quedan bloqueadas hasta completar este wizard.
+Runtime artifacts are stored in the mounted `data`, `wallet`, `keys`, and `logs` volumes.
 
-## Runtime API
-
-Todas las rutas se publican bajo `/api`:
-
-| Ruta | Uso |
-| --- | --- |
-| `GET /api/health` | Health check del contenedor y del backend. |
-| `POST /api/files/upload` | Carga archivos al area temporal del backend. |
-| `POST /api/files/prepare` | Genera el plan de preparacion antes de procesar documentos. |
-| `POST /api/files/process` | Procesa un documento y crea el job de ingesta. |
-| `POST /api/files/process-batch` | Procesa varios documentos en lote. |
-| `GET /api/files` | Lista documentos disponibles. |
-| `GET /api/files/{file_id}/markdown` | Devuelve el markdown extraido de un documento. |
-| `POST /api/metadata/upload` | Carga metadatos CSV para el catalogo. |
-| `POST /api/questions/ask` | Ejecuta una pregunta RAG sobre documentos y metadatos. |
-| `POST /api/questions/ask/stream` | Ejecuta una pregunta RAG con streaming. |
-| `GET /api/chats` | Lista conversaciones persistentes. |
-| `GET /api/improvement/overview` | Consulta metricas y trazas de mejora. |
-
-## Desarrollo local
-
-### Requisitos
-
-- Windows con PowerShell.
-- Node.js y npm.
-- Python 3.11.
-- Dependencias del frontend instaladas en `apps/frontend`.
-
-Para preparar el backend por primera vez:
-
-```powershell
-py -3.11 -m venv apps\backend\.venv
-.\apps\backend\.venv\Scripts\python.exe -m pip install -r apps\backend\requirements.txt
-```
-
-Para instalar dependencias del frontend:
-
-```powershell
-Push-Location apps\frontend
-npm install
-Pop-Location
-```
-
-### Levantar el proyecto
-
-Desde la raiz del repositorio:
+## Local Development
 
 ```powershell
 .\scripts\dev.ps1
 ```
 
-El script abre:
+- Backend: `http://127.0.0.1:8012/`
+- Frontend: `http://localhost:5173/`
 
-- Backend FastAPI: `http://127.0.0.1:8012/`
-- Frontend Vite: `http://localhost:5173/`
-
-En Cursor o VS Code, usa la tarea `Dev: Start Project` desde `Tasks: Run Task`. Si necesitas reinstalar dependencias del frontend:
+To reinstall frontend dependencies:
 
 ```powershell
 .\scripts\dev.ps1 -InstallFrontendDeps
 ```
 
-Si prefieres levantar el backend sin reload:
-
-```powershell
-.\scripts\dev.ps1 -NoReload
-```
-
-Si quieres forzar ventanas externas incluso desde Cursor o VS Code:
-
-```powershell
-.\scripts\dev.ps1 -ExternalWindows
-```
-
-## Verificacion
+## Verification
 
 ```powershell
 .\scripts\check-project.ps1
 ```
 
-La validacion:
+The script validates the FastAPI import and builds the frontend.
 
-- importa el backend FastAPI
-- compila el frontend con `npm run build`
+## License
 
-Si el proyecto tiene Sentrux instalado, tambien puedes validar reglas estructurales:
-
-```powershell
-sentrux check .
-```
-
-## Estructura
-
-```text
-apps/
-  backend/        API FastAPI, servicios, RAG, ingesta y SQL bootstrap
-  frontend/       UI React/Vite
-docker/           nginx y arranque del contenedor
-scripts/          utilidades de desarrollo y verificacion
-.sentrux/         reglas de arquitectura del repositorio
-Dockerfile        build multi-stage para frontend, backend y runtime
-```
-
-## Licencia
-
-Este proyecto esta licenciado bajo la licencia MIT. Consulta [`LICENSE`](LICENSE).
+MIT. See [`LICENSE`](LICENSE).
