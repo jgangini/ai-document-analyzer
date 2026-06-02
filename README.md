@@ -1,8 +1,8 @@
 # AI Document Analyzer
 
-Full-stack application for ingesting documents, extracting page text and metadata, and answering governed questions through Oracle Autonomous Database, OCI Object Storage, and OCI Generative AI.
+https://github.com/user-attachments/assets/3fe36e15-da09-48a9-96b8-990529fea1d8
 
-Demo video: https://github.com/user-attachments/assets/3fe36e15-da09-48a9-96b8-990529fea1d8
+Full-stack application for ingesting documents, extracting page text and metadata, and answering governed questions through Oracle Autonomous Database, OCI Object Storage, and OCI Generative AI.
 
 ## Docker
 
