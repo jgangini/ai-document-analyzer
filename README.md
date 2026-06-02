@@ -23,7 +23,7 @@ Then open `http://localhost:8080`.
 
 ## CloudTechNext
 
-The repository follows the same deployment shape as `select-ai-analyzer`: the `Dockerfile` lives at the repository root, the frontend lives in `apps/frontend`, the backend lives in `apps/backend`, nginx configuration lives in `docker/`, and `/api/health` exposes the health check.
+This repository is packaged for CloudTechNext deployment: the `Dockerfile` lives at the repository root, the frontend lives in `apps/frontend`, the backend lives in `apps/backend`, nginx configuration lives in `docker/`, and `/api/health` exposes the health check.
 
 CloudTechNext can clone `https://github.com/jgangini/ai-document-analyzer.git`, build the image from the repository root, and mount persistent volumes for `data`, `wallet`, `keys`, and `logs`.
 
@@ -81,4 +81,3 @@ The script validates the FastAPI import and builds the frontend.
 This project is licensed under the [MIT License](LICENSE).
 
 AI Document Analyzer is an independent project and is not an official Oracle product. It is not affiliated with, endorsed by, or sponsored by Oracle Corporation. Oracle, OCI, and related marks are trademarks or registered trademarks of Oracle and/or its affiliates. Third-party trademarks, logos, service names, and assets remain the property of their respective owners.
-
