@@ -10,6 +10,14 @@ router = APIRouter(tags=["health"])
 @router.get("/health")
 def health() -> dict:
     settings = get_settings()
+    if settings.setup_bypass_enabled:
+        return {
+            "status": "ok",
+            "app": settings.app_name,
+            "model": settings.oci_genai_model,
+            "database_backend": settings.database_backend,
+            "install_state": {"setup_bypass": True},
+        }
     config_service = ConfigService(get_db_manager())
     return {
         "status": "ok",
@@ -18,4 +26,3 @@ def health() -> dict:
         "database_backend": settings.database_backend,
         "install_state": {},
     }
-

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { LoadingState } from '../components/common/LoadingState';
 
@@ -13,7 +13,7 @@ type SetupRoutesProps = {
 
 export function SetupRoutes({ onSetupComplete }: SetupRoutesProps) {
   return (
-    <>
+    <Routes>
       <Route
         path="/setup"
         element={
@@ -23,6 +23,6 @@ export function SetupRoutes({ onSetupComplete }: SetupRoutesProps) {
         }
       />
       <Route path="*" element={<Navigate to="/setup" replace />} />
-    </>
+    </Routes>
   );
 }

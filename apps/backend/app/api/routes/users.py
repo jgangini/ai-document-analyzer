@@ -108,6 +108,17 @@ async def delete_user(user_id: int, current_user: dict = Depends(get_current_use
 @router.get("/me")
 @trace
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    if settings is not None and settings.setup_bypass_enabled:
+        return {
+            "user_id": int(current_user.get("user_id") or 1),
+            "username": str(current_user.get("username") or settings.DEV_ADMIN_USERNAME),
+            "name": "Local",
+            "last_name": "Admin",
+            "email": "admin.local@example.com",
+            "modules": [1, 2, 3, 4],
+            "group_id": 0,
+            "group_name": "Administrators",
+        }
     try:
         user_info = get_user_service().get_user_info(current_user.get("user_id"))
         if not user_info:
@@ -156,4 +167,3 @@ async def change_password(request: ChangePasswordRequest, current_user: dict = D
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(500, f"Error changing password: {str(e)}")
-

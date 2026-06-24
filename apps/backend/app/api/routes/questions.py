@@ -22,12 +22,14 @@ from apps.backend.app.contracts.questions import (
     SourceItem,
 )
 from apps.backend.app.api.setup_guard import require_setup_completed
+from apps.backend.app.core.config import get_settings
 from apps.backend.app.core.security import get_optional_current_user
 from apps.backend.app.core.session import get_db_manager
 from apps.backend.app.agent.service import get_qa_graph_service
 from apps.backend.app.rag.query_selectors import build_effective_selector_question, merge_question_selectors
 from apps.backend.app.rag.scope_resolver import ScopeResolutionError
 from apps.backend.app.repositories.file_repository import FileRepository
+from apps.backend.app.services.local_rag_service import list_local_documents
 from apps.backend.app.services.metadata_keys import canonicalize_file_key
 
 router = APIRouter(
@@ -188,6 +190,17 @@ def _load_visible_scope_options(*, repository: FileRepository, user_id: int) -> 
         metadata_fields=metadata_fields,
         has_metadata=bool(metadata_fields),
     )
+
+
+def _load_local_scope_options() -> ScopeOptionsResponse:
+    files = _normalize_archive_slugs(
+        [
+            str(doc.relative_path).split("/", 1)[0]
+            for doc in list_local_documents()
+            if str(doc.relative_path or "").strip()
+        ]
+    )
+    return ScopeOptionsResponse(files=files, metadata_fields=[], has_metadata=False)
 
 
 def _build_request_history(request: AskQuestionRequest) -> list[dict[str, str]]:
@@ -464,6 +477,8 @@ def _question_uses_inline_selectors(question: str) -> bool:
 def get_scope_options(
     current_user: dict | None = Depends(get_optional_current_user),
 ) -> ScopeOptionsResponse:
+    if get_settings().local_rag_enabled:
+        return _load_local_scope_options()
     effective_user_id = -1
     if current_user is not None and current_user.get("user_id") is not None:
         try:

@@ -68,6 +68,33 @@ function normalizeAskResponsePayload(data: any) {
   };
 }
 
+function normalizeChatFacadePayload(data: any) {
+  const sources = Array.isArray(data?.sources) ? data.sources : [];
+  return {
+    success: true,
+    reply: String(data?.answer || ''),
+    citedSources: sources.map((source: unknown, index: number) => ({
+      doc_id: String(index + 1),
+      name: String(source || ''),
+      snippet: String(source || ''),
+    })),
+    model_used: 'local-chat-facade',
+    thread_id: '',
+    reasoning: {
+      strategy: 'local-hash-evidence',
+      answer_mode: 'extractive',
+      visual_confirmation_used: false,
+      analyzed_pages: [],
+      confidence_notes: ['Respuesta via /api/chat.'],
+    } as ReasoningResult,
+    telemetry: {
+      cited_sources_count: sources.length,
+    },
+  };
+}
+
+const useChatFacade = import.meta.env.VITE_USE_CHAT_FACADE === 'true';
+
 export const ragApi = {
   listDocuments: (status?: string) =>
     api.get('/files', {
@@ -157,6 +184,14 @@ export const ragApi = {
     conversationId?: number,
     requestOptions?: ChatRequestOptions
   ) => {
+    if (useChatFacade) {
+      const resp = await api.post('/chat', {
+        message: question,
+        session_id: conversationId ? `conversation-${conversationId}` : 'frontend-local',
+        reset_session: false,
+      });
+      return { data: normalizeChatFacadePayload(resp.data || {}) };
+    }
     const normalizedFileIds = Array.isArray(fileIds)
       ? fileIds
           .map((value) => Number(value))
@@ -206,6 +241,24 @@ export const ragApi = {
     requestOptions?: ChatRequestOptions,
     onGraphEvent?: (event: GraphRuntimeEvent) => void
   ) => {
+    if (useChatFacade) {
+      onGraphEvent?.({
+        event_type: 'run_started',
+        status: 'started',
+        node_key: 'local_chat_facade',
+      } as GraphRuntimeEvent);
+      const resp = await api.post('/chat', {
+        message: question,
+        session_id: conversationId ? `conversation-${conversationId}` : 'frontend-local',
+        reset_session: false,
+      });
+      onGraphEvent?.({
+        event_type: 'run_completed',
+        status: 'completed',
+        node_key: 'local_chat_facade',
+      } as GraphRuntimeEvent);
+      return { data: normalizeChatFacadePayload(resp.data || {}) };
+    }
     const normalizedFileIds = Array.isArray(fileIds)
       ? fileIds
           .map((value) => Number(value))

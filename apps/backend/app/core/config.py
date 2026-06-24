@@ -46,6 +46,16 @@ class Settings(BaseSettings):
     PAGE_IMAGE_DIR: str = "data/page_images"
     UPLOAD_DIR: str = "data/uploads"
     USER_RUNTIME_SCOPE: str = "global"
+    SESSION_MEMORY_BACKEND: str = "local"
+    SESSION_MEMORY_TTL_SECONDS: int = 86400
+    OCI_CACHE_REDIS_URL: str = ""
+    REDIS_URL: str = ""
+    SETUP_BYPASS: bool = False
+    DEV_ADMIN_USERNAME: str = "admin"
+    DEV_ADMIN_PASSWORD: str = "admin123"
+    LOCAL_RAG_ENABLED: bool = False
+    LOCAL_RAG_CORPUS_ROOT: str = r"D:\dev\codex-co-police\.source\app.legacy.v2"
+    LOCAL_RAG_MAX_FILES: int = 1200
 
     @model_validator(mode="before")
     @classmethod
@@ -157,6 +167,29 @@ class Settings(BaseSettings):
     def user_runtime_scope(self) -> str:
         value = str(self.USER_RUNTIME_SCOPE or "global").strip().lower()
         return value or "global"
+
+    @property
+    def session_memory_backend(self) -> str:
+        value = str(self.SESSION_MEMORY_BACKEND or "local").strip().lower()
+        if value == "oci":
+            return "oci_cache"
+        return value if value in {"local", "redis", "oci_cache"} else "local"
+
+    @property
+    def session_memory_url(self) -> str:
+        return str(self.OCI_CACHE_REDIS_URL or self.REDIS_URL or "").strip()
+
+    @property
+    def setup_bypass_enabled(self) -> bool:
+        return bool(self.SETUP_BYPASS)
+
+    @property
+    def local_rag_enabled(self) -> bool:
+        return bool(self.LOCAL_RAG_ENABLED)
+
+    @property
+    def local_rag_corpus_root(self) -> Path:
+        return Path(self.LOCAL_RAG_CORPUS_ROOT)
 
     @property
     def user_data_root(self) -> Path:

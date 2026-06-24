@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { LoadingState } from '../components/common/LoadingState';
 
@@ -43,7 +43,7 @@ function routeElement(element: JSX.Element): JSX.Element {
 
 export function AuthenticatedRoutes({ isAuthenticated }: AuthenticatedRoutesProps) {
   return (
-    <>
+    <Routes>
       <Route path="/login" element={routeElement(<LoginForm />)} />
       <Route path="/home" element={protectedElement(isAuthenticated, routeElement(<Home />))} />
       <Route path="/chat" element={protectedElement(isAuthenticated, routeElement(<Chat />))} />
@@ -58,6 +58,6 @@ export function AuthenticatedRoutes({ isAuthenticated }: AuthenticatedRoutesProp
       <Route path="/users" element={protectedElement(isAuthenticated, routeElement(<Users />))} />
       <Route path="/settings" element={protectedElement(isAuthenticated, routeElement(<Settings />))} />
       <Route path="*" element={<Navigate to={isAuthenticated ? '/home' : '/login'} replace />} />
-    </>
+    </Routes>
   );
 }

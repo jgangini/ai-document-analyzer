@@ -22,6 +22,7 @@ from apps.backend.app.core.tracing import checkpoint, set_trace_id
 from apps.backend.app.agent.service import get_qa_graph_service
 from apps.backend.app.api.routes import (
     auth,
+    chat,
     chats,
     config,
     documents,
@@ -158,6 +159,7 @@ app.include_router(documents.router, prefix="/api")
 app.include_router(improvement.router, prefix="/api")
 app.include_router(metadata.router, prefix="/api")
 app.include_router(questions.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 app.include_router(chats.router, prefix="/api")
 app.include_router(file.router, prefix="/api")
 

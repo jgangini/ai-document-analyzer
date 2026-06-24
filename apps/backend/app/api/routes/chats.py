@@ -17,6 +17,7 @@ from apps.backend.app.contracts.chats import (
     RenameConversationRequest,
 )
 from apps.backend.app.api.setup_guard import require_setup_completed
+from apps.backend.app.core.config import get_settings
 from apps.backend.app.core.security import get_current_user
 from apps.backend.app.core.session import get_db_manager
 from apps.backend.app.repositories.file_repository import FileRepository
@@ -53,11 +54,80 @@ def _map_summary(item: dict) -> ConversationSummary:
     )
 
 
+_LOCAL_CHATS: dict[int, dict] = {}
+_LOCAL_CHAT_MESSAGES: dict[int, list[dict]] = {}
+_LOCAL_NEXT_ID = 1
+
+
+def _local_chat_enabled() -> bool:
+    return get_settings().setup_bypass_enabled and get_settings().local_rag_enabled
+
+
+def _local_create_chat(title: str | None) -> ConversationSummary:
+    global _LOCAL_NEXT_ID
+    now = datetime.utcnow()
+    conversation_id = _LOCAL_NEXT_ID
+    _LOCAL_NEXT_ID += 1
+    item = {
+        "qa_conversations_id": conversation_id,
+        "qa_conversations_title": str(title or "New chat").strip() or "New chat",
+        "turns": 0,
+        "last_message_preview": "",
+        "qa_conversations_created": now,
+        "qa_conversations_updated": now,
+    }
+    _LOCAL_CHATS[conversation_id] = item
+    _LOCAL_CHAT_MESSAGES[conversation_id] = []
+    return _map_summary(item)
+
+
+def append_local_chat_turn(*, session_id: str, user_message: str, assistant_answer: str, sources: list[str]) -> None:
+    if not _local_chat_enabled():
+        return
+    if not session_id.startswith("conversation-"):
+        return
+    try:
+        conversation_id = int(session_id.removeprefix("conversation-"))
+    except ValueError:
+        return
+    item = _LOCAL_CHATS.get(conversation_id)
+    if item is None:
+        return
+    now = datetime.utcnow()
+    messages = _LOCAL_CHAT_MESSAGES.setdefault(conversation_id, [])
+    messages.append(
+        {
+            "message_id": f"local-user-{now.timestamp()}",
+            "role": "user",
+            "content": user_message,
+            "created_at": now,
+            "model_used": "",
+            "retrieval_metadata": {},
+        }
+    )
+    messages.append(
+        {
+            "message_id": f"local-assistant-{now.timestamp()}",
+            "role": "assistant",
+            "content": assistant_answer,
+            "created_at": now,
+            "model_used": "local-chat-facade",
+            "retrieval_metadata": {"sources": list(sources or [])},
+        }
+    )
+    item["turns"] = len([message for message in messages if message.get("role") == "assistant"])
+    item["last_message_preview"] = assistant_answer[:280]
+    item["qa_conversations_updated"] = now
+
+
 @router.get("", response_model=ConversationListResponse)
 def list_chats(
     search: str | None = Query(default=None, max_length=120),
     current_user: dict = Depends(get_current_user),
 ) -> ConversationListResponse:
+    if _local_chat_enabled():
+        items = sorted(_LOCAL_CHATS.values(), key=lambda item: item["qa_conversations_updated"], reverse=True)
+        return ConversationListResponse(items=[_map_summary(item) for item in items])
     repository = _get_repository()
     user_id = _require_user_id(current_user)
     items = repository.list_qa_conversations(user_id=user_id, search=search)
@@ -69,6 +139,8 @@ def create_chat(
     request: CreateConversationRequest,
     current_user: dict = Depends(get_current_user),
 ) -> ConversationSummary:
+    if _local_chat_enabled():
+        return _local_create_chat(request.title)
     repository = _get_repository()
     user_id = _require_user_id(current_user)
     created = repository.create_qa_conversation(user_id=user_id, title=request.title)
@@ -83,6 +155,13 @@ def rename_chat(
     request: RenameConversationRequest,
     current_user: dict = Depends(get_current_user),
 ) -> ConversationSummary:
+    if _local_chat_enabled():
+        item = _LOCAL_CHATS.get(int(conversation_id))
+        if not item:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        item["qa_conversations_title"] = request.title
+        item["qa_conversations_updated"] = datetime.utcnow()
+        return _map_summary(item)
     repository = _get_repository()
     user_id = _require_user_id(current_user)
     updated = repository.rename_qa_conversation(
@@ -107,6 +186,10 @@ def rename_chat(
 
 @router.delete("/{conversation_id}")
 def delete_chat(conversation_id: int, current_user: dict = Depends(get_current_user)):
+    if _local_chat_enabled():
+        _LOCAL_CHATS.pop(int(conversation_id), None)
+        _LOCAL_CHAT_MESSAGES.pop(int(conversation_id), None)
+        return {"deleted": True, "conversation_id": int(conversation_id)}
     repository = _get_repository()
     user_id = _require_user_id(current_user)
     deleted = repository.delete_qa_conversation(user_id=user_id, conversation_id=int(conversation_id))
@@ -120,6 +203,25 @@ def list_chat_messages(
     conversation_id: int,
     current_user: dict = Depends(get_current_user),
 ) -> ConversationMessagesResponse:
+    if _local_chat_enabled():
+        conversation = _LOCAL_CHATS.get(int(conversation_id))
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return ConversationMessagesResponse(
+            conversation_id=int(conversation_id),
+            title=str(conversation.get("qa_conversations_title") or "New chat"),
+            messages=[
+                ConversationMessage(
+                    message_id=str(item.get("message_id") or ""),
+                    role=str(item.get("role") or "assistant"),
+                    content=str(item.get("content") or ""),
+                    created_at=item.get("created_at"),
+                    model_used=str(item.get("model_used") or ""),
+                    retrieval_metadata=item.get("retrieval_metadata") if isinstance(item.get("retrieval_metadata"), dict) else {},
+                )
+                for item in list(_LOCAL_CHAT_MESSAGES.get(int(conversation_id), []))
+            ],
+        )
     repository = _get_repository()
     user_id = _require_user_id(current_user)
     conversation = repository.get_qa_conversation(user_id=user_id, conversation_id=int(conversation_id))

@@ -10,6 +10,7 @@ import time
 import uuid
 
 from apps.backend.app.contracts.files import FileProcessItem
+from apps.backend.app.core.config import get_settings
 from apps.backend.app.core.session import get_db_manager
 from apps.backend.app.ingest.ingestion_factory import get_ingestion_service
 from apps.backend.app.repositories.file_repository import FileRepository
@@ -41,6 +42,9 @@ class IngestJobRegistry:
         self._recover_orphaned_file_states()
 
     def _recover_orphaned_file_states(self) -> None:
+        settings = get_settings()
+        if settings.setup_bypass_enabled or settings.local_rag_enabled:
+            return
         try:
             repository = FileRepository(get_db_manager())
             repository.mark_incomplete_files_as_failed()

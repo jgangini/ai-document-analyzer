@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from apps.backend.app.api.setup_guard import require_setup_completed
-from apps.backend.app.core.security import get_current_user
+from apps.backend.app.core.security import create_access_token, get_current_user
 from apps.backend.app.core.tracing import trace
 from apps.backend.app.services.auth_service import AuthService
 
@@ -28,6 +28,27 @@ def get_auth_service():
 @router.post("/login")
 @trace
 async def login(request: LoginRequest):
+    if settings is not None and settings.setup_bypass_enabled:
+        if request.username == settings.DEV_ADMIN_USERNAME and request.password == settings.DEV_ADMIN_PASSWORD:
+            user = {
+                "user_id": 1,
+                "username": settings.DEV_ADMIN_USERNAME,
+                "name": "Local",
+                "last_name": "Admin",
+                "email": "admin.local@example.com",
+                "modules": [1, 2, 3, 4],
+                "group_id": 0,
+                "group_name": "Administrators",
+            }
+            token = create_access_token(
+                {"sub": user["username"], "user_id": user["user_id"], "group_id": user["group_id"]},
+                settings,
+            )
+            return {"access_token": token, "token_type": "bearer", "user": user}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password",
+        )
     auth_service = get_auth_service()
     result = auth_service.login(request.username, request.password)
     if not result:
@@ -52,4 +73,3 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 @trace
 async def logout():
     return {"message": "Logout successful"}
-

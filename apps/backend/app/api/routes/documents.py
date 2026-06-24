@@ -42,6 +42,7 @@ from apps.backend.app.ingest.archive_service import ArchiveService
 from apps.backend.app.ingest.ingest_runner import get_ingest_job_registry
 from apps.backend.app.ingest.upload_preparation_service import UploadPreparationService
 from apps.backend.app.repositories.file_repository import FileRepository
+from apps.backend.app.services.local_rag_service import list_local_documents
 from apps.backend.app.storage.object_storage_service import ObjectStorageService
 
 router = APIRouter(
@@ -236,6 +237,30 @@ def _map_file_summary(item: dict) -> FileSummary:
         created_at=_as_datetime(item.get("file_created")),
         updated_at=_as_datetime(item.get("file_updated")),
     )
+
+
+def _local_file_summaries() -> list[FileSummary]:
+    now = datetime.now(timezone.utc)
+    summaries: list[FileSummary] = []
+    for index, doc in enumerate(list_local_documents(), start=1):
+        summaries.append(
+            FileSummary(
+                file_id=index,
+                user_id=1,
+                file_name=doc.path.name,
+                file_input_obj_name=str(doc.path),
+                file_output_obj_name=doc.relative_path,
+                archive_slug=Path(doc.relative_path).parts[0] if Path(doc.relative_path).parts else None,
+                document_code=None,
+                document_code_source="none",
+                access_profiles=["all"],
+                page_count=1,
+                status="completed",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    return summaries
 
 
 def _map_page_summary(item: dict) -> FilePageSummary:
@@ -496,6 +521,8 @@ def get_process_job(job_id: str) -> IngestJobStatusResponse:
 
 @router.get("", response_model=FileListResponse)
 def list_files(current_user: dict = Depends(get_current_user)) -> FileListResponse:
+    if get_settings().local_rag_enabled:
+        return FileListResponse(items=_local_file_summaries())
     repository = _get_repository()
     resolved_user_id = _resolve_authenticated_user_id(
         repository=repository,

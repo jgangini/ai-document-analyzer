@@ -91,6 +91,8 @@ def get_setup_service():
 @trace
 async def check_setup_status():
     try:
+        if settings is not None and settings.setup_bypass_enabled:
+            return {"completed": True}
         if db_manager is None:
             return {"completed": False}
         setup_service = get_setup_service()

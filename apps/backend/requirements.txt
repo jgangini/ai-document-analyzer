@@ -13,7 +13,10 @@ pymupdf==1.27.2
 langchain-core
 langchain-oci
 langgraph
+deepagents>=0.6.11,<0.7
+redis==5.2.1
 httpx==0.28.1
+locust==2.37.10
 rank-bm25==0.2.2
 onnxruntime==1.24.3
 docling

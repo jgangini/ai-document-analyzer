@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { Routes } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { LoadingState } from '../components/common/LoadingState';
@@ -65,13 +64,9 @@ export function AppRouter() {
 
   const handleSetupComplete = () => queryClient.setQueryData(queryKeys.setup.check, true);
 
-  return (
-    <Routes>
-      {!setupDone ? (
-        <SetupRoutes onSetupComplete={handleSetupComplete} />
-      ) : (
-        <AuthenticatedRoutes isAuthenticated={isAuthenticated} />
-      )}
-    </Routes>
+  return !setupDone ? (
+    <SetupRoutes onSetupComplete={handleSetupComplete} />
+  ) : (
+    <AuthenticatedRoutes isAuthenticated={isAuthenticated} />
   );
 }
