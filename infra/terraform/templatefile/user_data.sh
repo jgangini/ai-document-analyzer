@@ -55,27 +55,6 @@ use_reachable_base_images
 mkdir -p "$RUNTIME_DIR/data" "$RUNTIME_DIR/wallet" "$RUNTIME_DIR/keys" "$RUNTIME_DIR/logs"
 chown -R opc:opc "$RUNTIME_DIR"
 
-# The first public repository cut may not include the OCI SVG assets imported by LoginForm.
-# Keep the installer deterministic by materializing simple monochrome icons before building.
-mkdir -p "$SOURCE_DIR/apps/frontend/src/assets/oci"
-ensure_oci_icon() {
-  local path="$1"
-  local label="$2"
-  if [ -f "$path" ]; then
-    return
-  fi
-  cat >"$path" <<SVG
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-  <rect class="st0" width="96" height="96" rx="18" fill="none"/>
-  <path class="st1" fill="currentColor" d="M48 14c18.8 0 34 15.2 34 34S66.8 82 48 82 14 66.8 14 48 29.2 14 48 14Zm0 12c-12.2 0-22 9.8-22 22s9.8 22 22 22 22-9.8 22-22-9.8-22-22-22Zm0 10 13 12-13 12-13-12 13-12Z"/>
-  <title>$label</title>
-</svg>
-SVG
-}
-ensure_oci_icon "$SOURCE_DIR/apps/frontend/src/assets/oci/autonomous-database.svg" "Autonomous Database"
-ensure_oci_icon "$SOURCE_DIR/apps/frontend/src/assets/oci/generative-ai.svg" "Generative AI"
-ensure_oci_icon "$SOURCE_DIR/apps/frontend/src/assets/oci/object-storage.svg" "Object Storage"
-
 retry 5 docker build -t "$LOCAL_IMAGE" "$SOURCE_DIR"
 docker rm -f "$APP_NAME" >/dev/null 2>&1 || true
 docker run -d \

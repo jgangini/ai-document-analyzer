@@ -44,7 +44,7 @@ test-results/
 *.out.log
 *.err.log
 apps/backend/tests/reports/
-oci/
+/oci/
 scripts/*
 !scripts/arch-preflight.ps1
 !scripts/arch-postflight.ps1
