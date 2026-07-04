@@ -27,6 +27,8 @@ This repository is packaged for CloudTechNext deployment: the `Dockerfile` lives
 
 CloudTechNext can clone `https://github.com/jgangini/ai-document-analyzer.git`, build the image from the repository root, and mount persistent volumes for `data`, `wallet`, `keys`, and `logs`.
 
+Deploy Studio reads [`deploy-studio.json`](deploy-studio.json) from an immutable release commit and packages `infra/terraform` for OCI Resource Manager. OCI API credentials are injected into the temporary deployment archive and must never be committed under `infra/terraform/.oci`.
+
 ## Wizard
 
 1. Upload `wallet.zip`.

@@ -45,6 +45,16 @@ test-results/
 *.err.log
 apps/backend/tests/reports/
 oci/
-scripts/
+scripts/*
+!scripts/arch-preflight.ps1
+!scripts/arch-postflight.ps1
 tests_docs/
 RUN_LOG.md
+
+# Deploy Studio injects OCI material into the Resource Manager archive only.
+infra/terraform/.oci/
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+infra/terraform/*.tfvars.json
