@@ -49,6 +49,32 @@
       }
     ]
   },
+  "presentation": {
+    "title": "AI Document Analyzer",
+    "summary": "Builds an OCI document intelligence workspace with Autonomous AI Database, Object Storage, Generative AI and an application VM.",
+    "tags": ["Oracle AI Database 26ai", "Generative AI", "Object Storage", "Compute VM"],
+    "image": "/assets/ai-document-analyzer.png",
+    "image_alt": "AI Document Analyzer application preview",
+    "href": "https://github.com/jgangini/ai-document-analyzer"
+  },
+  "run_steps": [
+    {"key": "queue", "label": "Queue"},
+    {"key": "credentials", "label": "OCI credentials"},
+    {"key": "compartment", "label": "Compartment"},
+    {"key": "policies", "label": "IAM policies"},
+    {"key": "stack", "label": "Resource Manager stack"},
+    {"key": "plan", "label": "Terraform plan"},
+    {"key": "apply", "label": "Terraform apply"},
+    {"key": "network", "label": "Network and VCN"},
+    {"key": "bucket", "label": "Object Storage"},
+    {"key": "compute", "label": "Application VM"},
+    {"key": "database", "label": "Autonomous Database"},
+    {"key": "wallet", "label": "Database wallet"},
+    {"key": "application", "label": "Application setup"},
+    {"key": "artifacts", "label": "Access artifacts"},
+    {"key": "email", "label": "Access email"},
+    {"key": "complete", "label": "Ready"}
+  ],
   "outputs": [
     "application_url",
     "ssh_user",
