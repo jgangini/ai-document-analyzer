@@ -9,11 +9,11 @@ Keep this file repo-specific. Do not duplicate universal rules that already live
 - Repo root: the Git repository containing this file.
 - Purpose: Deploy and operate AI Document Analyzer on OCI.
 - Technical audience: Application and OCI platform engineers.
-- Primary surfaces: React frontend, FastAPI backend, Docker image, and `infra/terraform`.
+- Primary surfaces: React frontend, FastAPI backend, Docker image, and root `terraform/`.
 
 ## Repo Operating Defaults
 
-- Preferred validation commands: `python -m unittest tests.test_deploy_studio_contract`; Terraform fmt/init/validate in `infra/terraform`.
+- Preferred validation commands: `python -m unittest tests.test_deploy_studio_contract`; Terraform fmt/init/validate in `terraform/`.
 - Preferred search and inspection tools: `semble search`, then literal `rg` for exhaustive references.
 - Default runtime or environment assumptions: Python 3.11, Node/Vite, Docker, OCI Resource Manager.
 
@@ -25,7 +25,7 @@ Keep this file repo-specific. Do not duplicate universal rules that already live
 
 ## Repo-Specific Friction
 
-- Sensitive paths or fragile areas: `infra/terraform/.oci` is temporary and must remain untracked.
+- Sensitive paths or fragile areas: `terraform/.oci` is temporary and must remain untracked.
 - Credentials, external systems, or approval boundaries: Never commit OCI config, API keys, wallets, or Terraform state.
 - Noisy, slow, or expensive commands to avoid by default:
 

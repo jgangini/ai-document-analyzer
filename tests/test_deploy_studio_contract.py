@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class DeployStudioContractTests(unittest.TestCase):
     def test_contract_points_to_safe_terraform_package(self) -> None:
-        contract = json.loads((ROOT / "deploy-studio.json").read_text(encoding="utf-8"))
+        contract = json.loads((ROOT / "terraform" / "deploy-studio.json").read_text(encoding="utf-8"))
 
         self.assertEqual(contract["schema_version"], 1)
         self.assertEqual(contract["project_id"], "ai-document-analyzer")
@@ -18,13 +18,13 @@ class DeployStudioContractTests(unittest.TestCase):
         self.assertFalse((terraform_path / ".oci").exists())
 
     def test_declared_outputs_are_not_secrets(self) -> None:
-        contract = json.loads((ROOT / "deploy-studio.json").read_text(encoding="utf-8"))
+        contract = json.loads((ROOT / "terraform" / "deploy-studio.json").read_text(encoding="utf-8"))
         forbidden = ("password", "private_key", "wallet_base64", "secret")
 
         self.assertFalse(any(token in name.lower() for name in contract["outputs"] for token in forbidden))
 
     def test_declares_all_deploy_studio_artifacts(self) -> None:
-        contract = json.loads((ROOT / "deploy-studio.json").read_text(encoding="utf-8"))
+        contract = json.loads((ROOT / "terraform" / "deploy-studio.json").read_text(encoding="utf-8"))
 
         self.assertEqual(
             set(contract["artifacts"]),

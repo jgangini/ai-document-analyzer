@@ -7,13 +7,11 @@ on:
     tags:
       - "v*"
     paths:
-      - "deploy-studio.json"
-      - "infra/terraform/**"
+      - "terraform/**"
       - ".github/workflows/terraform.yml"
   pull_request:
     paths:
-      - "deploy-studio.json"
-      - "infra/terraform/**"
+      - "terraform/**"
       - ".github/workflows/terraform.yml"
 
 permissions:
@@ -26,11 +24,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - name: Check formatting
-        run: terraform -chdir=infra/terraform fmt -check -recursive
+        run: terraform -chdir=terraform fmt -check -recursive
       - name: Initialize providers
-        run: terraform -chdir=infra/terraform init -backend=false -input=false
+        run: terraform -chdir=terraform init -backend=false -input=false
       - name: Validate configuration
-        run: terraform -chdir=infra/terraform validate
+        run: terraform -chdir=terraform validate
       - name: Validate Deploy Studio contract
         run: python -m unittest tests.test_deploy_studio_contract
 

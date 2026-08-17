@@ -52,9 +52,9 @@ tests_docs/
 RUN_LOG.md
 
 # Deploy Studio injects OCI material into the Resource Manager archive only.
-infra/terraform/.oci/
-infra/terraform/.terraform/
-infra/terraform/*.tfstate
-infra/terraform/*.tfstate.*
-infra/terraform/*.tfvars
-infra/terraform/*.tfvars.json
+terraform/.oci/
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/*.tfvars.json
