@@ -17,35 +17,40 @@
         "label": "Database wallet password",
         "type": "password",
         "required": true,
-        "secret": true
+        "secret": true,
+        "group": "database"
       },
       {
         "name": "autonomous_database_admin_password",
         "label": "Database ADMIN password",
         "type": "password",
         "required": true,
-        "secret": true
+        "secret": true,
+        "group": "database"
       },
       {
         "name": "application_username",
         "label": "Application administrator username",
         "type": "text",
         "required": true,
-        "default": "admin"
+        "default": "admin",
+        "group": "application_vm"
       },
       {
         "name": "autonomous_database_developer_password",
         "label": "Application administrator password",
         "type": "password",
         "required": true,
-        "secret": true
+        "secret": true,
+        "group": "application_vm"
       },
       {
         "name": "availability_domain_index",
         "label": "Availability domain index",
         "type": "number",
         "required": false,
-        "default": 0
+        "default": 0,
+        "group": "application_vm"
       }
     ]
   },
