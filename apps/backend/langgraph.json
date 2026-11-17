@@ -1,0 +1,7 @@
+{
+  "graphs": {
+    "document_qa": "./app/agent/document_graph.py:build_qa_graph"
+  },
+  "env": ".env",
+  "description": "LangGraph descriptor for FastAPI-first backend."
+}

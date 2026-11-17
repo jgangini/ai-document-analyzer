@@ -1,0 +1,143 @@
+# Sentrux architecture rules for the doc_agent workspace.
+#
+# These constraints intentionally match the current baseline closely so the
+# repository gets useful regression protection before the larger cleanup lands.
+
+[constraints]
+min_quality = 0.63
+min_modularity = 0.65
+min_acyclicity = 0.50
+min_depth = 0.44
+min_equality = 0.45
+# The repository now owns an intentionally independent Terraform package and
+# Deploy Studio contract. Keep this narrowly below the measured 0.7379 baseline;
+# `sentrux gate` remains the regression guard for future degradation.
+min_redundancy = 0.737
+
+max_cycles = 0
+max_cc = 80
+max_fn_lines = 400
+max_file_lines = 6000
+max_upward_violations = 0
+# Target after splitting the monolithic RAG validation suite: true.
+no_god_files = false
+
+[language.python.constraints]
+max_cc = 80
+max_fn_lines = 400
+max_file_lines = 5500
+
+[language.typescript.constraints]
+max_cc = 45
+max_fn_lines = 350
+max_file_lines = 3600
+
+[[layers]]
+name = "backend_foundation"
+paths = [
+  "apps/backend/app/core/*",
+  "apps/backend/app/integrations/*",
+  "apps/backend/app/services/runtime_config_service.py",
+]
+order = 5
+
+[[layers]]
+name = "backend_data_access"
+paths = ["apps/backend/app/repositories/*", "apps/backend/app/storage/*"]
+order = 4
+
+[[layers]]
+name = "backend_domain"
+paths = [
+  "apps/backend/app/services/auth_service.py",
+  "apps/backend/app/services/bootstrap_service.py",
+  "apps/backend/app/services/metadata_normalization_service.py",
+  "apps/backend/app/services/metadata_upload_service.py",
+  "apps/backend/app/services/user_service.py",
+  "apps/backend/app/rag/*",
+  "apps/backend/app/rag/retrieval/*",
+  "apps/backend/app/ingest/*",
+  "apps/backend/app/agent/*",
+  "apps/backend/app/agent/tools/*",
+  "apps/backend/app/agent/memory/*",
+]
+order = 3
+
+[[layers]]
+name = "backend_api"
+paths = ["apps/backend/app/api/routes/*", "apps/backend/app/api/setup_guard.py"]
+order = 1
+
+[[layers]]
+name = "backend_entrypoints"
+paths = ["apps/backend/app/main.py", "apps/backend/app/dev/*"]
+order = 0
+
+[[layers]]
+name = "frontend_foundation"
+paths = [
+  "apps/frontend/src/assets/*",
+  "apps/frontend/src/config/*",
+  "apps/frontend/src/styles/*",
+  "apps/frontend/src/types/*",
+]
+order = 4
+
+[[layers]]
+name = "frontend_data"
+paths = ["apps/frontend/src/lib/*", "apps/frontend/src/services/*"]
+order = 3
+
+[[layers]]
+name = "frontend_state"
+paths = ["apps/frontend/src/context/*", "apps/frontend/src/hooks/*"]
+order = 2
+
+[[layers]]
+name = "frontend_ui"
+paths = ["apps/frontend/src/components/*", "apps/frontend/src/components/*/*"]
+order = 1
+
+[[layers]]
+name = "frontend_entrypoints"
+paths = [
+  "apps/frontend/src/app/*",
+  "apps/frontend/src/App.tsx",
+  "apps/frontend/src/main.tsx",
+]
+order = 0
+
+[[boundaries]]
+from = "apps/backend/app/core/*"
+to = "apps/backend/app/api/routes/*"
+reason = "Core must not depend on route modules."
+
+[[boundaries]]
+from = "apps/backend/app/repositories/*"
+to = "apps/backend/app/api/routes/*"
+reason = "Persistence stays below API routing."
+
+[[boundaries]]
+from = "apps/backend/app/services/*"
+to = "apps/backend/app/api/routes/*"
+reason = "Services expose behavior to routes, not the reverse."
+
+[[boundaries]]
+from = "apps/backend/app/rag/*"
+to = "apps/backend/app/api/routes/*"
+reason = "RAG domain logic must not import route modules."
+
+[[boundaries]]
+from = "apps/backend/app/agent/*"
+to = "apps/backend/app/api/routes/*"
+reason = "Agent orchestration must stay route-independent."
+
+[[boundaries]]
+from = "apps/frontend/src/services/*"
+to = "apps/frontend/src/components/*"
+reason = "API clients should not depend on UI components."
+
+[[boundaries]]
+from = "apps/frontend/src/components/*"
+to = "apps/backend/*"
+reason = "Frontend must use HTTP/API clients, not backend internals."

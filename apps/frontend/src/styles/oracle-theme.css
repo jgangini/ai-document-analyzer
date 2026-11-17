@@ -1,0 +1,1235 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --oracle-red: #C74634;
+  --oracle-dark-gray: #312D2A;
+  --oracle-medium-gray: #4D4D4D;
+  --oracle-light-gray: #767676;
+  --oracle-bg-gray: #F6F6F6;
+  --oracle-white: #FFFFFF;
+  --oracle-border: #D9D9D9;
+  --oracle-table-header: #F5F2F0;
+  --oracle-blue-link: #0572CE;
+  --oracle-green-accent: #33553c;
+  --app-bg-start: #181514;
+  --app-bg-mid: #24201e;
+  --app-bg-end: #11100f;
+  --app-surface: rgba(37, 33, 30, 0.92);
+  --app-surface-strong: rgba(45, 40, 36, 0.96);
+  --app-surface-soft: rgba(255, 255, 255, 0.055);
+  --app-border: rgba(255, 255, 255, 0.11);
+  --app-border-strong: rgba(255, 255, 255, 0.17);
+  --app-text: #fbf7f2;
+  --app-text-muted: rgba(236, 227, 219, 0.72);
+  --app-text-subtle: rgba(236, 227, 219, 0.54);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  background: var(--oracle-bg-gray);
+  min-height: 100vh;
+  color: #333;
+}
+
+::selection {
+  background: rgba(232, 226, 220, 0.34);
+  color: #1d1917;
+}
+
+::-moz-selection {
+  background: rgba(232, 226, 220, 0.34);
+  color: #1d1917;
+}
+
+.login-shell-dark {
+  background:
+    radial-gradient(circle at 22% 20%, rgba(199, 70, 52, 0.08), transparent 30%),
+    radial-gradient(circle at 86% 86%, rgba(199, 70, 52, 0.11), transparent 32%),
+    radial-gradient(circle at 78% 82%, rgba(255, 255, 255, 0.032), transparent 34%),
+    linear-gradient(135deg, #201d1b 0%, #2d2926 48%, #151413 100%);
+}
+
+.login-card-shell {
+  position: relative;
+  isolation: isolate;
+  border-radius: 1.65rem;
+  background: transparent;
+  box-shadow:
+    0 38px 120px rgba(0, 0, 0, 0.32),
+    0 16px 46px rgba(0, 0, 0, 0.18);
+  transform: translateZ(0);
+}
+
+.login-card-panel {
+  overflow: hidden;
+}
+
+.login-card-panel--hero {
+  border-radius: 1.65rem 1.65rem 0 0;
+}
+
+.login-card-panel--form {
+  border-radius: 0 0 1.65rem 1.65rem;
+}
+
+@media (min-width: 768px) {
+  .login-card-panel--hero {
+    border-radius: 1.65rem 0 0 1.65rem;
+  }
+
+  .login-card-panel--form {
+    border-radius: 0 1.65rem 1.65rem 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .login-card-shell,
+  .login-card-panel--hero,
+  .login-card-panel--form {
+    border-radius: 1.75rem;
+  }
+
+  .login-card-panel--hero {
+    border-radius: 1.75rem 0 0 1.75rem;
+  }
+
+  .login-card-panel--form {
+    border-radius: 0 1.75rem 1.75rem 0;
+  }
+}
+
+.app-shell-dark,
+.setup-shell-dark {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+  color: var(--app-text);
+  background:
+    radial-gradient(circle at 7% 7%, rgba(199, 70, 52, 0.18), transparent 28rem),
+    radial-gradient(circle at 92% 94%, rgba(199, 70, 52, 0.16), transparent 30rem),
+    radial-gradient(circle at 58% 12%, rgba(255, 255, 255, 0.035), transparent 24rem),
+    linear-gradient(135deg, var(--app-bg-start) 0%, var(--app-bg-mid) 48%, var(--app-bg-end) 100%);
+}
+
+.setup-shell-light {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+}
+
+.setup-shell-light .app-footer {
+  border-top-color: var(--oracle-border);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--oracle-medium-gray);
+  box-shadow: 0 -10px 32px rgba(49, 45, 42, 0.08);
+}
+
+.setup-shell-light .app-footer > span {
+  color: var(--oracle-medium-gray);
+}
+
+.setup-shell-light .app-footer .mx-2 {
+  color: rgba(77, 77, 77, 0.38) !important;
+}
+
+.app-shell-dark::before,
+.setup-shell-dark::before,
+.app-shell-dark::after,
+.setup-shell-dark::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 999px;
+  filter: blur(38px);
+}
+
+.app-shell-dark::before,
+.setup-shell-dark::before {
+  top: -8rem;
+  left: -8rem;
+  width: 22rem;
+  height: 22rem;
+  background: rgba(199, 70, 52, 0.23);
+}
+
+.app-shell-dark::after,
+.setup-shell-dark::after {
+  right: -10rem;
+  bottom: -11rem;
+  width: 28rem;
+  height: 28rem;
+  background: rgba(199, 70, 52, 0.17);
+}
+
+.app-content-layer {
+  position: relative;
+  z-index: 1;
+}
+
+.app-page-title {
+  color: var(--app-text);
+  letter-spacing: -0.035em;
+}
+
+.app-page-description {
+  color: var(--app-text-muted);
+}
+
+.app-card,
+.app-shell-dark .app-card,
+.setup-shell-dark .app-card {
+  border: 1px solid var(--app-border);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.072), rgba(255, 255, 255, 0.032)),
+    var(--app-surface);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.app-card-quiet {
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.048);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+.app-red-glow-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-red-glow-card::before {
+  content: '';
+  position: absolute;
+  inset: -8rem auto auto -8rem;
+  width: 18rem;
+  height: 18rem;
+  border-radius: 999px;
+  background: rgba(199, 70, 52, 0.14);
+  filter: blur(34px);
+  pointer-events: none;
+}
+
+.app-red-glow-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell-dark .home-light-card,
+.app-shell-dark .home-stat-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 247, 243, 0.96)) !important;
+  border: 1px solid rgba(234, 223, 215, 0.96) !important;
+  color: #171412 !important;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.82) inset !important;
+}
+
+.app-shell-dark .home-stat-card {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.app-shell-dark .home-stat-card::before {
+  content: '';
+  position: absolute;
+  inset: auto 1rem 0.75rem 1rem;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(199, 70, 52, 0.86), rgba(199, 70, 52, 0.18));
+}
+
+.app-shell-dark .home-stat-card::after {
+  content: none;
+}
+
+.app-shell-dark .home-stat-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(199, 70, 52, 0.28) !important;
+  box-shadow:
+    0 26px 72px rgba(0, 0, 0, 0.24),
+    0 0 0 4px rgba(199, 70, 52, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.86) inset !important;
+}
+
+.app-shell-dark .home-stat-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell-dark .home-light-title,
+.app-shell-dark .home-stat-value {
+  color: #171412 !important;
+}
+
+.app-shell-dark .home-light-muted,
+.app-shell-dark .home-stat-label,
+.app-shell-dark .home-stat-caption,
+.app-shell-dark .home-progress-note {
+  color: #6a5d55 !important;
+}
+
+.app-shell-dark .home-stat-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.app-shell-dark .home-stat-icon {
+  color: #171412 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell-dark .home-ready-pill {
+  background: rgba(199, 70, 52, 0.075) !important;
+  border: 1px solid rgba(199, 70, 52, 0.16) !important;
+  color: #171412 !important;
+  box-shadow: none;
+}
+
+.app-shell-dark .home-ingestion-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell-dark .home-ingestion-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 0.25rem;
+  background: linear-gradient(90deg, rgba(199, 70, 52, 0.92), rgba(199, 70, 52, 0.22), transparent);
+}
+
+.app-shell-dark .home-ingestion-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell-dark .home-progress-note {
+  letter-spacing: 0.12em;
+}
+
+.app-shell-dark .home-progress-note--right {
+  color: #8a7a70 !important;
+}
+
+.app-shell-dark .home-progress-track {
+  background: #ebe3dd !important;
+  box-shadow: inset 0 1px 2px rgba(49, 45, 42, 0.08);
+}
+
+.app-shell-dark .home-progress-fill {
+  background: linear-gradient(90deg, #c74634, #e35c49) !important;
+  box-shadow: 0 8px 22px rgba(199, 70, 52, 0.24);
+}
+
+.app-kicker {
+  color: rgba(217, 203, 196, 0.78);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.app-sidebar {
+  background:
+    linear-gradient(180deg, rgba(49, 45, 42, 0.98), rgba(28, 25, 23, 0.98)),
+    #201d1b;
+  border-right: 1px solid var(--app-border) !important;
+  box-shadow: 16px 0 44px rgba(0, 0, 0, 0.22) !important;
+}
+
+.app-sidebar button {
+  border-radius: 0.75rem;
+  margin: 0.0625rem 0.5rem;
+  width: calc(100% - 1rem);
+}
+
+.app-sidebar button[title] {
+  width: calc(100% - 0.75rem);
+  margin-inline: 0.375rem;
+}
+
+.app-sidebar .sidebar-toggle-button {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.app-sidebar .sidebar-chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(226, 213, 205, 0.34) rgba(255, 255, 255, 0.035);
+  scrollbar-gutter: stable;
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar {
+  width: 0.625rem;
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar-thumb {
+  min-height: 3rem;
+  border: 0.1875rem solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(rgba(226, 213, 205, 0.42), rgba(226, 213, 205, 0.42))
+    padding-box;
+}
+
+.app-sidebar .sidebar-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(rgba(236, 226, 219, 0.58), rgba(236, 226, 219, 0.58))
+    padding-box;
+}
+
+.app-scrollbar,
+.chat-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 77, 77, 0.38) transparent;
+  scrollbar-gutter: stable;
+}
+
+.app-scrollbar::-webkit-scrollbar,
+.chat-scrollbar::-webkit-scrollbar {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+.app-scrollbar::-webkit-scrollbar-track,
+.chat-scrollbar::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: transparent;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb,
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 3rem;
+  border: 0.1875rem solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(rgba(77, 77, 77, 0.34), rgba(77, 77, 77, 0.34))
+    padding-box;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover,
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(rgba(77, 77, 77, 0.48), rgba(77, 77, 77, 0.48))
+    padding-box;
+}
+
+.app-shell-dark .bg-oracle-bg-gray,
+.setup-shell-dark .bg-oracle-bg-gray {
+  background-color: rgba(255, 255, 255, 0.045) !important;
+}
+
+.app-shell-dark .bg-white,
+.setup-shell-dark .bg-white,
+.app-shell-dark [class~="bg-white/95"],
+.setup-shell-dark [class~="bg-white/95"],
+.app-shell-dark [class~="bg-white/80"],
+.setup-shell-dark [class~="bg-white/80"],
+.app-shell-dark [class~="bg-white/70"],
+.setup-shell-dark [class~="bg-white/70"] {
+  background-color: var(--app-surface) !important;
+}
+
+.app-shell-dark .bg-gray-50,
+.setup-shell-dark .bg-gray-50,
+.app-shell-dark .bg-gray-100,
+.setup-shell-dark .bg-gray-100,
+.app-shell-dark .bg-oracle-table-header,
+.setup-shell-dark .bg-oracle-table-header,
+.app-shell-dark .bg-blue-50,
+.setup-shell-dark .bg-blue-50,
+.app-shell-dark .bg-amber-50,
+.setup-shell-dark .bg-amber-50,
+.app-shell-dark .bg-red-50,
+.setup-shell-dark .bg-red-50,
+.app-shell-dark .bg-rose-50,
+.setup-shell-dark .bg-rose-50,
+.app-shell-dark .bg-emerald-50,
+.setup-shell-dark .bg-emerald-50,
+.app-shell-dark [class*="bg-blue-50"],
+.setup-shell-dark [class*="bg-blue-50"],
+.app-shell-dark [class*="bg-amber-50"],
+.setup-shell-dark [class*="bg-amber-50"],
+.app-shell-dark [class*="bg-red-50"],
+.setup-shell-dark [class*="bg-red-50"],
+.app-shell-dark [class*="bg-rose-50"],
+.setup-shell-dark [class*="bg-rose-50"],
+.app-shell-dark [class*="bg-emerald-50"],
+.setup-shell-dark [class*="bg-emerald-50"] {
+  background-color: rgba(255, 255, 255, 0.058) !important;
+}
+
+.app-shell-dark .text-gray-900,
+.setup-shell-dark .text-gray-900,
+.app-shell-dark .text-gray-800,
+.setup-shell-dark .text-gray-800,
+.app-shell-dark .text-oracle-dark-gray,
+.setup-shell-dark .text-oracle-dark-gray,
+.app-shell-dark .text-blue-800,
+.setup-shell-dark .text-blue-800,
+.app-shell-dark .text-amber-800,
+.setup-shell-dark .text-amber-800,
+.app-shell-dark .text-emerald-800,
+.setup-shell-dark .text-emerald-800 {
+  color: var(--app-text) !important;
+}
+
+.app-shell-dark .text-gray-700,
+.setup-shell-dark .text-gray-700,
+.app-shell-dark .text-gray-600,
+.setup-shell-dark .text-gray-600,
+.app-shell-dark .text-gray-500,
+.setup-shell-dark .text-gray-500,
+.app-shell-dark .text-oracle-medium-gray,
+.setup-shell-dark .text-oracle-medium-gray,
+.app-shell-dark .text-oracle-light-gray,
+.setup-shell-dark .text-oracle-light-gray,
+.app-shell-dark .text-blue-600,
+.setup-shell-dark .text-blue-600,
+.app-shell-dark .text-blue-700,
+.setup-shell-dark .text-blue-700,
+.app-shell-dark .text-amber-600,
+.setup-shell-dark .text-amber-600,
+.app-shell-dark .text-amber-700,
+.setup-shell-dark .text-amber-700,
+.app-shell-dark [class*="text-blue-"],
+.setup-shell-dark [class*="text-blue-"],
+.app-shell-dark [class*="text-amber-"],
+.setup-shell-dark [class*="text-amber-"] {
+  color: var(--app-text-muted) !important;
+}
+
+.app-shell-dark .border-gray-100,
+.setup-shell-dark .border-gray-100,
+.app-shell-dark .border-gray-200,
+.setup-shell-dark .border-gray-200,
+.app-shell-dark .border-gray-300,
+.setup-shell-dark .border-gray-300,
+.app-shell-dark .border-oracle-border,
+.setup-shell-dark .border-oracle-border,
+.app-shell-dark .border-blue-200,
+.setup-shell-dark .border-blue-200,
+.app-shell-dark .border-amber-200,
+.setup-shell-dark .border-amber-200,
+.app-shell-dark .border-emerald-200,
+.setup-shell-dark .border-emerald-200,
+.app-shell-dark [class*="border-blue-"],
+.setup-shell-dark [class*="border-blue-"],
+.app-shell-dark [class*="border-amber-"],
+.setup-shell-dark [class*="border-amber-"] {
+  border-color: var(--app-border) !important;
+}
+
+.app-shell-dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.setup-shell-dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.app-shell-dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+.setup-shell-dark .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--app-border) !important;
+}
+
+.app-shell-dark .shadow,
+.setup-shell-dark .shadow,
+.app-shell-dark .shadow-md,
+.setup-shell-dark .shadow-md,
+.app-shell-dark .shadow-lg,
+.setup-shell-dark .shadow-lg {
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055) !important;
+}
+
+.app-shell-dark table,
+.setup-shell-dark table {
+  color: var(--app-text-muted);
+}
+
+.app-shell-dark thead,
+.setup-shell-dark thead {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.app-shell-dark tbody tr:hover,
+.setup-shell-dark tbody tr:hover {
+  background-color: rgba(199, 70, 52, 0.075) !important;
+}
+
+.app-shell-dark mark,
+.setup-shell-dark mark {
+  background-color: rgba(241, 192, 92, 0.72) !important;
+  color: #211c18 !important;
+}
+
+.app-shell-dark .input-oracle,
+.setup-shell-dark .input-oracle {
+  border-color: var(--app-border) !important;
+  background-color: rgba(20, 18, 16, 0.72) !important;
+  color: var(--app-text) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.app-shell-dark .input-oracle::placeholder,
+.setup-shell-dark .input-oracle::placeholder {
+  color: rgba(236, 227, 219, 0.44);
+}
+
+.app-shell-dark .input-oracle:focus,
+.setup-shell-dark .input-oracle:focus,
+.app-shell-dark .input-oracle:focus-visible,
+.setup-shell-dark .input-oracle:focus-visible {
+  border-color: var(--oracle-red) !important;
+  box-shadow:
+    0 0 0 3px rgba(199, 70, 52, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+.app-shell-dark select.input-oracle option,
+.setup-shell-dark select.input-oracle option {
+  color: #f8f3ef;
+  background-color: #24201e;
+}
+
+.app-shell-dark .btn-secondary,
+.setup-shell-dark .btn-secondary {
+  border-color: var(--app-border) !important;
+  background-color: rgba(255, 255, 255, 0.065) !important;
+  color: var(--app-text) !important;
+}
+
+.app-shell-dark .btn-secondary:hover,
+.setup-shell-dark .btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.app-shell-dark .text-oracle-blue-link,
+.setup-shell-dark .text-oracle-blue-link {
+  color: #e45d4c !important;
+}
+
+.app-shell-dark .rounded-lg.bg-white,
+.setup-shell-dark .rounded-lg.bg-white,
+.app-shell-dark .rounded-xl.bg-white,
+.setup-shell-dark .rounded-xl.bg-white {
+  border: 1px solid var(--app-border);
+}
+
+.btn-primary {
+  @apply bg-oracle-red text-white px-6 py-2 rounded hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply bg-white border border-oracle-border text-oracle-dark-gray px-6 py-2 rounded hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.input-oracle {
+  @apply w-full border border-oracle-border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-oracle-red/50 focus:border-oracle-red;
+}
+
+.login-input-oracle {
+  @apply h-12 w-full rounded-lg border bg-white px-3.5 text-[15px] text-gray-900 shadow-sm transition;
+  border-color: #d9d2cb;
+  caret-color: var(--oracle-red);
+  outline: none;
+}
+
+.login-input-oracle:focus,
+.login-input-oracle:focus-visible,
+.login-input-oracle:active,
+.login-input-oracle--focused {
+  background: #fffdfa !important;
+  border-color: var(--oracle-red) !important;
+  border-width: 2px !important;
+  box-shadow:
+    0 0 0 4px rgba(199, 70, 52, 0.2),
+    0 1px 2px rgba(49, 45, 42, 0.08) !important;
+  outline: none !important;
+}
+
+.login-input-oracle::selection {
+  background: rgba(199, 70, 52, 0.22);
+  color: #171412;
+}
+
+.login-input-oracle::-moz-selection {
+  background: rgba(199, 70, 52, 0.22);
+  color: #171412;
+}
+
+.input-focus-gray:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(199, 70, 52, 0.5) !important;
+  border-color: var(--oracle-red) !important;
+}
+
+.app-shell-dark .app-light-surface,
+.app-shell-dark .chat-composer-surface,
+.app-shell-dark .chat-suggestion-menu {
+  background:
+    linear-gradient(180deg, #ffffff, #fffdfa) !important;
+  border-color: rgba(229, 219, 211, 0.98) !important;
+  color: #171412 !important;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.app-shell-dark .chat-panel-surface {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.app-shell-dark .chat-start-surface {
+  background:
+    radial-gradient(circle at 8% 8%, rgba(199, 70, 52, 0.18), transparent 28rem),
+    radial-gradient(circle at 90% 88%, rgba(199, 70, 52, 0.14), transparent 30rem),
+    radial-gradient(circle at 55% 15%, rgba(255, 255, 255, 0.04), transparent 24rem),
+    linear-gradient(135deg, var(--app-bg-start) 0%, var(--app-bg-mid) 48%, var(--app-bg-end) 100%) !important;
+}
+
+.app-shell-dark .chat-start-surface .text-oracle-dark-gray {
+  color: var(--app-text) !important;
+}
+
+.app-shell-dark .chat-message-list {
+  background:
+    linear-gradient(180deg, #f7f3ef 0%, #f1ece6 100%) !important;
+}
+
+.app-shell-dark .chat-assistant-message {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #e5ddd6 !important;
+  box-shadow:
+    0 12px 28px rgba(49, 45, 42, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset !important;
+}
+
+.chat-markdown-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(77, 77, 77, 0.38) transparent;
+}
+
+.chat-markdown-table-scroll::-webkit-scrollbar {
+  height: 0.5rem;
+}
+
+.chat-markdown-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-markdown-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(77, 77, 77, 0.32);
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+}
+
+.chat-markdown-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(77, 77, 77, 0.48);
+}
+
+.app-shell-dark .chat-composer-footer {
+  background:
+    radial-gradient(circle at 2rem 50%, rgba(199, 70, 52, 0.12), transparent 6.75rem),
+    linear-gradient(135deg, #5b4d49 0%, #484240 48%, #343437 100%) !important;
+  border-color: rgba(199, 70, 52, 0.2) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 -14px 36px rgba(49, 45, 42, 0.18) !important;
+}
+
+.app-shell-dark .chat-suggestion-menu {
+  background: #ffffff !important;
+  border-color: #e7ddd6 !important;
+  box-shadow:
+    0 22px 56px rgba(49, 45, 42, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.92) inset !important;
+}
+
+.app-shell-dark .chat-start-surface .chat-composer-surface .text-oracle-dark-gray,
+.app-shell-dark .chat-start-surface .chat-suggestion-menu .text-oracle-dark-gray {
+  color: #171412 !important;
+  text-shadow: none !important;
+}
+
+.app-shell-dark .chat-start-surface .chat-composer-surface .text-oracle-medium-gray,
+.app-shell-dark .chat-start-surface .chat-suggestion-menu .text-oracle-medium-gray,
+.app-shell-dark .chat-start-surface .chat-suggestion-menu .text-oracle-light-gray {
+  color: #6a5d55 !important;
+  text-shadow: none !important;
+}
+
+.app-shell-dark .chat-start-surface .chat-composer-surface textarea {
+  color: #171412 !important;
+  -webkit-text-fill-color: #171412 !important;
+}
+
+.app-shell-dark .chat-start-surface .chat-composer-surface textarea::placeholder {
+  color: #8b7f76 !important;
+  opacity: 1 !important;
+}
+
+.app-shell-dark .composer-token-chip {
+  background: #ffffff !important;
+  border-color: #d9d2cb !important;
+  color: #171412 !important;
+  box-shadow: 0 1px 2px rgba(49, 45, 42, 0.08);
+}
+
+.app-shell-dark .chat-suggestion-kind-badge {
+  background-color: #f3f4f6 !important;
+  border-color: #d1d5db !important;
+  color: #4b5563 !important;
+}
+
+.app-shell-dark .chat-suggestion-item-selected .chat-suggestion-kind-badge {
+  background-color: #e5e7eb !important;
+  border-color: #cbd5e1 !important;
+  color: #374151 !important;
+}
+
+.app-shell-dark .chat-composer-surface textarea,
+.app-shell-dark .app-light-surface .chat-composer-surface textarea {
+  background: transparent !important;
+  border: 0 !important;
+  caret-color: #171412;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.app-shell-dark .chat-composer-surface .chat-composer-input--overlay,
+.app-shell-dark .app-light-surface .chat-composer-surface .chat-composer-input--overlay {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: transparent !important;
+  text-shadow: none !important;
+}
+
+.app-shell-dark .chat-composer-surface .chat-composer-input--overlay::selection,
+.app-shell-dark .app-light-surface .chat-composer-surface .chat-composer-input--overlay::selection {
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.app-shell-dark .chat-composer-surface textarea:focus,
+.app-shell-dark .chat-composer-surface textarea:focus-visible,
+.app-shell-dark .app-light-surface .chat-composer-surface textarea:focus,
+.app-shell-dark .app-light-surface .chat-composer-surface textarea:focus-visible {
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.app-shell-dark .app-light-surface .bg-white,
+.app-shell-dark .app-light-surface [class~="bg-white/95"],
+.app-shell-dark .app-light-surface [class~="bg-white/80"],
+.app-shell-dark .app-light-surface [class~="bg-white/70"] {
+  background-color: #ffffff !important;
+}
+
+.app-shell-dark .app-light-surface .bg-gray-50,
+.app-shell-dark .app-light-surface .bg-gray-100,
+.app-shell-dark .app-light-surface .bg-oracle-bg-gray,
+.app-shell-dark .app-light-surface .bg-oracle-table-header,
+.app-shell-dark .app-light-surface thead {
+  background-color: #f6f2ef !important;
+}
+
+.app-shell-dark .app-light-surface .bg-blue-50,
+.app-shell-dark .app-light-surface .bg-amber-50,
+.app-shell-dark .app-light-surface .bg-red-50,
+.app-shell-dark .app-light-surface .bg-rose-50,
+.app-shell-dark .app-light-surface .bg-emerald-50,
+.app-shell-dark .app-light-surface [class*="bg-blue-50"],
+.app-shell-dark .app-light-surface [class*="bg-amber-50"],
+.app-shell-dark .app-light-surface [class*="bg-red-50"],
+.app-shell-dark .app-light-surface [class*="bg-rose-50"],
+.app-shell-dark .app-light-surface [class*="bg-emerald-50"],
+.app-shell-dark .app-light-surface [class*="bg-purple-50"] {
+  background-color: #fff7f3 !important;
+}
+
+.app-shell-dark .app-light-surface [class*="bg-emerald-50"] {
+  background-color: #edf8f1 !important;
+}
+
+.app-shell-dark .app-light-surface [class*="bg-amber-50"] {
+  background-color: #fff7e8 !important;
+}
+
+.app-shell-dark .app-light-surface [class*="bg-blue-50"],
+.app-shell-dark .app-light-surface [class*="bg-purple-50"] {
+  background-color: #f4f1ef !important;
+}
+
+.app-shell-dark .app-light-surface .text-gray-900,
+.app-shell-dark .app-light-surface .text-gray-800,
+.app-shell-dark .app-light-surface .text-gray-700,
+.app-shell-dark .app-light-surface .text-oracle-dark-gray,
+.app-shell-dark .app-light-surface .text-blue-800,
+.app-shell-dark .app-light-surface .text-amber-800,
+.app-shell-dark .app-light-surface .text-emerald-800 {
+  color: #171412 !important;
+}
+
+.app-shell-dark .app-light-surface .text-gray-600,
+.app-shell-dark .app-light-surface .text-gray-500,
+.app-shell-dark .app-light-surface .text-oracle-medium-gray,
+.app-shell-dark .app-light-surface .text-oracle-light-gray,
+.app-shell-dark .app-light-surface .text-blue-600,
+.app-shell-dark .app-light-surface .text-blue-700,
+.app-shell-dark .app-light-surface .text-amber-600,
+.app-shell-dark .app-light-surface .text-amber-700 {
+  color: #6a5d55 !important;
+}
+
+.app-shell-dark .app-light-surface [class*="text-emerald-"] {
+  color: #047857 !important;
+}
+
+.app-shell-dark .app-light-surface [class*="text-amber-"] {
+  color: #8a5a00 !important;
+}
+
+.app-shell-dark .app-light-surface [class*="text-rose-"],
+.app-shell-dark .app-light-surface [class*="text-red-"] {
+  color: var(--oracle-red) !important;
+}
+
+.app-shell-dark .app-light-surface [class*="text-blue-"],
+.app-shell-dark .app-light-surface [class*="text-purple-"] {
+  color: #6a5d55 !important;
+}
+
+.app-shell-dark .app-light-surface .text-oracle-blue-link {
+  color: var(--oracle-red) !important;
+}
+
+.app-shell-dark .app-light-surface .chat-start-surface .text-oracle-dark-gray {
+  color: var(--app-text) !important;
+  text-shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
+}
+
+.app-shell-dark .app-light-surface .chat-start-surface .chat-composer-surface .text-oracle-dark-gray,
+.app-shell-dark .app-light-surface .chat-start-surface .chat-suggestion-menu .text-oracle-dark-gray {
+  color: #171412 !important;
+  text-shadow: none !important;
+}
+
+.app-shell-dark .app-light-surface .chat-start-surface .chat-composer-surface .text-oracle-medium-gray,
+.app-shell-dark .app-light-surface .chat-start-surface .chat-suggestion-menu .text-oracle-medium-gray,
+.app-shell-dark .app-light-surface .chat-start-surface .chat-suggestion-menu .text-oracle-light-gray {
+  color: #6a5d55 !important;
+  text-shadow: none !important;
+}
+
+.app-shell-dark .chat-conversation-header {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 2rem 50%, rgba(199, 70, 52, 0.12), transparent 6.75rem),
+    linear-gradient(135deg, #5b4d49 0%, #484240 48%, #343437 100%) !important;
+  border-color: rgba(199, 70, 52, 0.24) !important;
+  box-shadow:
+    0 18px 42px rgba(49, 45, 42, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.app-shell-dark .chat-conversation-header.chat-conversation-header--menu-open {
+  overflow: visible;
+}
+
+.app-shell-dark .chat-conversation-header::before {
+  content: '';
+  position: absolute;
+  inset: -5.5rem auto auto -3.5rem;
+  width: 15rem;
+  height: 15rem;
+  border-radius: 999px;
+  background: rgba(199, 70, 52, 0.1);
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.app-shell-dark .chat-conversation-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell-dark .chat-conversation-header .bg-oracle-red {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 10px 24px rgba(0, 0, 0, 0.22) !important;
+}
+
+.app-shell-dark .chat-conversation-header .text-oracle-dark-gray {
+  color: #ffffff !important;
+}
+
+.app-shell-dark .chat-conversation-header .text-oracle-light-gray,
+.app-shell-dark .chat-conversation-header .text-oracle-medium-gray {
+  color: rgba(255, 255, 255, 0.76) !important;
+}
+
+.app-shell-dark .chat-conversation-header button.text-oracle-medium-gray {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.app-shell-dark .chat-conversation-header button.text-oracle-medium-gray:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu {
+  background: #ffffff !important;
+  border-color: #e7ddd6 !important;
+  color: #171412 !important;
+  box-shadow:
+    0 22px 56px rgba(49, 45, 42, 0.22),
+    0 0 0 1px rgba(255, 255, 255, 0.92) inset !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .text-gray-700 {
+  color: #171412 !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .text-red-600 {
+  color: var(--oracle-red) !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .hover\:bg-gray-100:hover {
+  background-color: #f6f2ef !important;
+}
+
+.app-shell-dark .chat-conversation-header .chat-header-actions-menu .hover\:bg-red-50:hover {
+  background-color: #fff7f3 !important;
+}
+
+.app-shell-dark .app-light-surface .border-gray-100,
+.app-shell-dark .app-light-surface .border-gray-200,
+.app-shell-dark .app-light-surface .border-gray-300,
+.app-shell-dark .app-light-surface .border-oracle-border,
+.app-shell-dark .app-light-surface .border-blue-200,
+.app-shell-dark .app-light-surface .border-amber-200,
+.app-shell-dark .app-light-surface .border-emerald-200 {
+  border-color: #e7ddd6 !important;
+}
+
+.app-shell-dark .app-light-surface .divide-gray-100 > :not([hidden]) ~ :not([hidden]),
+.app-shell-dark .app-light-surface .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e7ddd6 !important;
+}
+
+.app-shell-dark .app-light-surface .input-oracle,
+.app-shell-dark .chat-composer-surface.input-oracle,
+.app-shell-dark .app-light-surface input,
+.app-shell-dark .app-light-surface select,
+.app-shell-dark .app-light-surface textarea {
+  background-color: #ffffff !important;
+  border-color: #d9d2cb !important;
+  color: #171412 !important;
+  box-shadow: inset 0 1px 0 rgba(49, 45, 42, 0.03) !important;
+}
+
+.app-shell-dark .app-light-surface .input-oracle::placeholder,
+.app-shell-dark .app-light-surface input::placeholder,
+.app-shell-dark .app-light-surface textarea::placeholder {
+  color: #8b7f76 !important;
+}
+
+.app-shell-dark .app-light-surface .input-oracle:focus,
+.app-shell-dark .app-light-surface input:focus,
+.app-shell-dark .app-light-surface select:focus,
+.app-shell-dark .app-light-surface textarea:focus {
+  border-color: var(--oracle-red) !important;
+  box-shadow:
+    0 0 0 3px rgba(199, 70, 52, 0.18),
+    inset 0 1px 0 rgba(49, 45, 42, 0.03) !important;
+}
+
+.app-shell-dark .app-light-surface select.input-oracle option,
+.app-shell-dark .app-light-surface select option {
+  background-color: #ffffff;
+  color: #171412;
+}
+
+.app-shell-dark .app-light-surface table {
+  color: #312d2a;
+}
+
+.app-shell-dark .app-light-surface tbody tr:hover {
+  background-color: #f3f4f6 !important;
+}
+
+.app-shell-dark .chat-graph-panel {
+  background: #ffffff !important;
+  color: #312d2a !important;
+}
+
+.app-shell-dark .chat-graph-panel .bg-oracle-bg-gray {
+  background-color: var(--oracle-bg-gray) !important;
+}
+
+.app-shell-dark .chat-graph-panel .bg-white {
+  background-color: #ffffff !important;
+}
+
+.app-shell-dark .chat-graph-panel .bg-gray-50 {
+  background-color: #f9fafb !important;
+}
+
+.app-shell-dark .chat-graph-panel .border-gray-200,
+.app-shell-dark .chat-graph-panel .border-oracle-border {
+  border-color: #d9d9d9 !important;
+}
+
+.app-shell-dark .chat-graph-panel .text-oracle-medium-gray,
+.app-shell-dark .chat-graph-panel .text-oracle-light-gray {
+  color: #767676 !important;
+}
+
+.app-shell-dark .chat-graph-panel .graph-status-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgba(49, 45, 42, 0.08);
+}
+
+.app-shell-dark .chat-graph-panel .graph-status-dot--idle {
+  background-color: #9ca3af !important;
+}
+
+.app-shell-dark .chat-graph-panel .graph-status-dot--running {
+  background-color: #2563eb !important;
+}
+
+.app-shell-dark .chat-graph-panel .graph-status-dot--completed {
+  background-color: #10b981 !important;
+}
+
+.app-shell-dark .chat-graph-panel .graph-status-dot--failed {
+  background-color: #dc2626 !important;
+}
+
+.app-shell-dark .settings-section-card--neutral {
+  background-color: #f3f4f6 !important;
+  border-color: #d1d5db !important;
+}
+
+.app-shell-dark .settings-section-card--accent {
+  background-color: #fff4f1 !important;
+  border-color: #f1c7bd !important;
+}
+
+.app-shell-dark .settings-section-card--accent svg {
+  color: var(--oracle-red) !important;
+}
+
+.app-shell-dark .app-light-surface .btn-secondary {
+  background-color: #ffffff !important;
+  border-color: #d9d2cb !important;
+  color: #312d2a !important;
+}
+
+.app-shell-dark .app-light-surface .btn-secondary:hover {
+  background-color: #f8f4f1 !important;
+}
+
+.oracle-header {
+  @apply text-white h-14 flex items-center pl-4 pr-6 gap-4 shadow-md;
+  background:
+    linear-gradient(90deg, rgba(49, 45, 42, 0.96), rgba(33, 30, 28, 0.94)),
+    var(--oracle-dark-gray);
+  border-bottom: 1px solid var(--app-border);
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.28),
+    inset 0 -1px 0 rgba(199, 70, 52, 0.13);
+}
+
+.oracle-header .app-brand-divider--light {
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+.app-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 400;
+  border-top: 1px solid var(--app-border);
+  background: rgba(25, 22, 20, 0.94);
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 -14px 42px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 768px) {
+  .app-shell-dark::before,
+  .setup-shell-dark::before {
+    width: 17rem;
+    height: 17rem;
+  }
+
+  .app-shell-dark::after,
+  .setup-shell-dark::after {
+    width: 20rem;
+    height: 20rem;
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
+.toast-enter {
+  animation: toast-enter 0.4s ease-out forwards;
+}
+
+.toast-exit {
+  animation: toast-exit 0.4s ease-out forwards;
+}

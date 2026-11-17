@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "project_id": "ai-document-analyzer",
+  "terraform": {
+    "path": "terraform",
+    "package_oci_credentials": true
+  },
+  "capabilities": {
+    "compartment_modes": ["new", "existing"],
+    "requires_genai_region": true,
+    "database_profile": "new"
+  },
+  "form": {
+    "fields": [
+      {
+        "name": "autonomous_database_wallet_password",
+        "label": "Database wallet password",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "group": "database"
+      },
+      {
+        "name": "autonomous_database_admin_password",
+        "label": "Database ADMIN password",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "group": "database"
+      },
+      {
+        "name": "application_username",
+        "label": "Application administrator username",
+        "type": "text",
+        "required": true,
+        "default": "admin",
+        "group": "application_vm"
+      },
+      {
+        "name": "autonomous_database_developer_password",
+        "label": "Application administrator password",
+        "type": "password",
+        "required": true,
+        "secret": true,
+        "group": "application_vm"
+      },
+      {
+        "name": "availability_domain_index",
+        "label": "Availability domain index",
+        "type": "number",
+        "required": false,
+        "default": 0,
+        "group": "application_vm"
+      }
+    ]
+  },
+  "presentation": {
+    "title": "AI Document Analyzer",
+    "summary": "Builds an OCI document intelligence workspace with Autonomous AI Database, Object Storage, Generative AI and an application VM.",
+    "tags": ["Oracle AI Database 26ai", "Generative AI", "Object Storage", "Compute VM"],
+    "image": "/assets/ai-document-analyzer.png",
+    "image_alt": "AI Document Analyzer application preview",
+    "href": "https://github.com/jgangini/ai-document-analyzer"
+  },
+  "run_steps": [
+    {"key": "queue", "label": "Queue"},
+    {"key": "credentials", "label": "OCI credentials"},
+    {"key": "compartment", "label": "Compartment"},
+    {"key": "policies", "label": "IAM policies"},
+    {"key": "stack", "label": "Resource Manager stack"},
+    {"key": "plan", "label": "Terraform plan"},
+    {"key": "apply", "label": "Terraform apply"},
+    {"key": "network", "label": "Network and VCN"},
+    {"key": "bucket", "label": "Object Storage"},
+    {"key": "compute", "label": "Application VM"},
+    {"key": "database", "label": "Autonomous Database"},
+    {"key": "wallet", "label": "Database wallet"},
+    {"key": "application", "label": "Application setup"},
+    {"key": "artifacts", "label": "Access artifacts"},
+    {"key": "email", "label": "Access email"},
+    {"key": "complete", "label": "Ready"}
+  ],
+  "outputs": [
+    "application_url",
+    "ssh_user",
+    "adb_db_name",
+    "autonomous_database_id",
+    "bucket_name"
+  ],
+  "artifacts": ["adb_wallet.zip", "ssh-private-key.pem", "connection-summary.txt"],
+  "post_apply": null
+}

@@ -1,0 +1,10 @@
+# Runtime trace log (TRACE=1)
+logs/
+data/runtime/
+data/models/
+
+# Virtual environment
+.venv/
+
+# Local secrets
+.env

@@ -1,0 +1,105 @@
+"""Shared state for the QA graph."""
+
+from __future__ import annotations
+
+from datetime import date
+from typing import Any, Literal
+
+from typing_extensions import NotRequired, TypedDict
+
+from apps.backend.app.contracts.questions import EvidenceItem
+from apps.backend.app.agent.contracts import HybridAnswerResult, LLMResult, VisualInspectionResult
+
+
+class QAGraphState(TypedDict):
+    question: str
+    raw_question: NotRequired[str]
+    effective_question: NotRequired[str]
+    original_question: NotRequired[str]
+    metadata_mode: NotRequired[Literal["auto", "metadata_first"]]
+    requested_file_ids: NotRequired[list[int]]
+    requested_archive_slugs: NotRequired[list[str]]
+    requested_metadata_fields: NotRequired[list[str]]
+    file_ids: list[int]
+    allow_inferred_scope: NotRequired[bool]
+    top_k: int
+    candidate_k: NotRequired[int | None]
+    min_pages_per_selected_doc: NotRequired[int]
+    summary_mode: NotRequired[Literal["default", "per_document"]]
+    retry_count: NotRequired[int]
+    max_retries: NotRequired[int]
+    coverage_target: NotRequired[float]
+    coverage_ratio: NotRequired[float]
+    selected_docs_count: NotRequired[int]
+    distinct_files_in_evidence: NotRequired[int]
+    should_retry_retrieval: NotRequired[bool]
+    chat_history: NotRequired[list[dict[str, str]]]
+    user_id: NotRequired[int | None]
+    conversation_id: NotRequired[int | None]
+    thread_id: NotRequired[str]
+    current_date: NotRequired[date | None]
+    conversation_scope_file_ids: NotRequired[list[int]]
+    conversation_scope_archive_slugs: NotRequired[list[str]]
+    conversation_scope_metadata_fields: NotRequired[list[str]]
+    conversation_scope_turn_index: NotRequired[int]
+    conversation_scope_question_class: NotRequired[str]
+    conversation_scope_applied: NotRequired[bool]
+
+    route: NotRequired[Literal["search", "document"]]
+    question_class: NotRequired[str]
+    question_class_rationale: NotRequired[str]
+    scope_origin: NotRequired[Literal["manual", "inferred", "metadata", "conversation", "global"]]
+    scope_document_codes: NotRequired[list[str]]
+    scope_archive_slugs: NotRequired[list[str]]
+    resolved_scope_file_count: NotRequired[int]
+    scope_resolution_ms: NotRequired[int]
+    ignored_inferred_scope: NotRequired[bool]
+    fact_context_text: NotRequired[str]
+    answer_override: NotRequired[str | None]
+    facts_used_count: NotRequired[int]
+    file_group_ids: NotRequired[list[int]]
+    metadata_phase_used: NotRequired[bool]
+    document_phase_used: NotRequired[bool]
+    resolved_archive_slugs: NotRequired[list[str]]
+    resolved_metadata_fields: NotRequired[list[str]]
+    metadata_only_reason: NotRequired[str]
+    answerability_route: NotRequired[str]
+    strategy: NotRequired[str]
+    selected_provider: NotRequired[str]
+    doc_shortlist_count: NotRequired[int]
+    text_candidates_count: NotRequired[int]
+    image_candidates_count: NotRequired[int]
+    page_text_count: NotRequired[int]
+    page_image_count: NotRequired[int]
+    oracle_text_count: NotRequired[int]
+    fused_pages_count: NotRequired[int]
+    rerank_count: NotRequired[int]
+    metadata_prefilter_count: NotRequired[int]
+    metadata_prefilter_ms: NotRequired[int]
+    metadata_prefilter_applied: NotRequired[bool]
+    full_document_coverage_requested: NotRequired[bool]
+    full_document_page_limit: NotRequired[int]
+    query_embedding_ms: NotRequired[int]
+    doc_search_ms: NotRequired[int]
+    page_search_ms: NotRequired[int]
+    rerank_ms: NotRequired[int]
+    retrieval_total_ms: NotRequired[int]
+    image_retrieval_enabled: NotRequired[bool]
+    retrieval_route: NotRequired[str]
+    visual_checks_count: NotRequired[int]
+    evidence_recall_proxy: NotRequired[float]
+    evidence_sources_count: NotRequired[int]
+    cited_sources_count: NotRequired[int]
+    node_timings_ms: NotRequired[dict[str, int]]
+
+    evidence: NotRequired[list[EvidenceItem]]
+    visual_result: NotRequired[VisualInspectionResult]
+    hybrid_answer: NotRequired[HybridAnswerResult]
+    answer: NotRequired[LLMResult]
+    answer_mode: NotRequired[str]
+
+    visual_confirmation_used: NotRequired[bool]
+    analyzed_pages: NotRequired[list[int]]
+    confidence_notes: NotRequired[list[str]]
+    ocr_vs_visual_discrepancies: NotRequired[list[str]]
+
